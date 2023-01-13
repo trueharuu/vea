@@ -1,0 +1,59 @@
+// comment
+
+1 + 1 // integers
+1.8 // floats, but are used as `Fraction`, irrational numbers will use real floats
+
+"strings"
+
+fn run() {
+  return 0;
+}
+
+let f(x) = x + 1 // closure, assigned to `f`
+method(f(x) = x + 1) // closure, not assigned
+
+let asin(x) = sin(1) // fn inverses, the fn will implement `Inverse`, assigned to `x`
+
+// numerical ops
+x >= y 
+x ≥  y // ge
+x >  y // gt
+
+x <= y 
+x ≤  y // le
+x <  y // lt
+
+x != y 
+x ≠  y // ne
+
+x == y // eq
+
+x! // factorial
+
+x ~= y:z
+x ≈  y:z // approximate eq, with an epsilon of z (will default to float epsilon)
+
+x ^ y // exponentiation, logical or(bool)
+x | y, fn | fn, bool | bool // bitwise or, function piping, logical or, respectively
+
+x & y // bitwise/logical or
+~x // bitwise/logical not
+-x // numerical negative, logical not(bool)
+|x| // absolute value
+
+x || y // guaranteed logical or
+x && y // guaranteed logical and
+x ^^ y // guaranteed logical xor
+!x // guaranteed logical not
+
+x:y // returns type `Fraction`, read as `the ratio of x to y`
+
+x{r} // restrict x to r
+
+// restrictions
+{a < x < b} // a to b, exclusive
+{(a, b)} // a to b, exclusive (other interval notation works)
+{x % 2 == 0} // only when x is even
+
+// unit
+1h3m5s100ms // hmsm format, can be any of them but must be in order

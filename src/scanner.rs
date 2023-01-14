@@ -28,7 +28,8 @@ impl Scanner {
     }
 
     pub fn scan_tokens(&mut self) -> &Vec<Token> {
-        while self.is_at_end() {
+        println!("{}", self.source);
+        while !self.is_at_end() {
             self.start = self.current;
             self.scan_token();
         }
@@ -102,11 +103,6 @@ impl Scanner {
             '\n' => {
                 self.line += 1;
             }
-
-            // math symbols
-            '≠' => self.put_token(TokenType::Ne),
-            '≤' => self.put_token(TokenType::Le),
-            '≥' => self.put_token(TokenType::Ge),
 
             '"' => self.string(),
 

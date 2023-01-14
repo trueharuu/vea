@@ -1,5 +1,3 @@
-use std::{env::Args, fs, iter::Peekable, path::Path, process::exit, vec::IntoIter};
-
 use crate::scanner::Scanner;
 
 #[derive(Copy, Clone)]
@@ -12,47 +10,49 @@ impl Lox {
         Self { had_err: false }
     }
 
-    pub fn exe(&mut self, argv: &mut Peekable<IntoIter<&str>>) {
-        if argv.len() > 1 {
-            println!("Usage: jlox [script]");
-            exit(64);
-        } else if argv.len() == 1 {
-            self.run_file(argv.peek().unwrap().to_string());
-        } else {
-            self.run_prompt();
-        }
-    }
+    // pub fn exe(&mut self, argv: &mut Peekable<IntoIter<&str>>) {
+    //     // if argv.len() > 1 {
+    //     //     println!("Usage: jlox [script]");
+    //     //     exit(64);
+    //     // } else if argv.len() == 1 {
+    //     //     self.run_file(argv.peek().unwrap().to_string());
+    //     // } else {
+    //     //     self.run_prompt();
+    //     // }
 
-    fn run_file(&mut self, path: String) {
-        let bytes = fs::read(Path::new(&path)).unwrap();
 
-        self.run(String::from_utf8(bytes).unwrap_or("".to_owned()));
+    // }
 
-        if self.had_err {
-            exit(65);
-        }
-    }
+    // fn run_file(&mut self, path: String) {
+    //     let bytes = fs::read(Path::new(&path)).unwrap();
 
-    pub fn run_prompt(&mut self) {
-        let input = std::io::stdin();
+    //     self.run(String::from_utf8(bytes).unwrap_or("".to_owned()));
 
-        loop {
-            print!("> ");
-            let mut line = String::new();
-            let i = input.read_line(&mut line);
+    //     if self.had_err {
+    //         exit(65);
+    //     }
+    // }
 
-            if i.is_err() {
-                break;
-            }
+    // pub fn run_prompt(&mut self) {
+    //     let input = std::io::stdin();
 
-            self.run(line);
-            self.had_err = false;
-        }
-    }
+    //     loop {
+    //         print!("> ");
+    //         let mut line = String::new();
+    //         let i = input.read_line(&mut line);
+
+    //         if i.is_err() {
+    //             break;
+    //         }
+
+    //         self.run(line);
+    //         self.had_err = false;
+    //     }
+    // }
 
     pub fn run(&mut self, line: String) {
         let mut tokens = Scanner::new(line, *self);
-        println!("{:?}", tokens.scan_tokens());
+        println!("{:#?}", tokens.scan_tokens());
     }
 
     pub fn error(&mut self, line: usize, message: String) {

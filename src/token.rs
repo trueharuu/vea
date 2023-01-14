@@ -1,8 +1,8 @@
-use std::{fmt::Debug, borrow::Borrow};
+use std::fmt::Debug;
 
 use crate::literal::Literal;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
     LeftParen,
     RightParen,
@@ -51,12 +51,12 @@ impl std::fmt::Display for TokenType {
     }
 }
 
-
+#[derive(Clone)]
 pub struct Token {
-    kind: TokenType,
-    lexeme: String,
-    literal: Literal,
-    line: usize,
+    pub kind: TokenType,
+    pub lexeme: String,
+    pub literal: Literal,
+    pub line: usize,
 }
 
 impl Token {
@@ -72,6 +72,6 @@ impl Token {
 
 impl Debug for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] ({}) {}", self.line, self.kind, self.lexeme)
+        write!(f, "\"{}\" {}::({:?})", self.lexeme, self.kind, self.literal)
     }
 }

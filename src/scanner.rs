@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     literal::Literal,
     lox::Lox,
-    token::{Token, TokenType},
+    token::{Token, TokenKind},
 };
 
 pub struct Scanner {
@@ -35,7 +35,7 @@ impl Scanner {
         }
 
         self.tokens.push(Token::new(
-            TokenType::Eof,
+            TokenKind::Eof,
             "".to_string(),
             Literal::None,
             self.line,
@@ -52,42 +52,42 @@ impl Scanner {
         let c: char = self.advance();
 
         match c {
-            '(' => self.put_token(TokenType::LeftParen),
-            ')' => self.put_token(TokenType::RightParen),
-            '{' => self.put_token(TokenType::LeftBrace),
-            '}' => self.put_token(TokenType::RightBrace),
-            ',' => self.put_token(TokenType::Comma),
-            '.' => self.put_token(TokenType::Dot),
-            '-' => self.put_token(TokenType::Minus),
-            '+' => self.put_token(TokenType::Plus),
-            ';' => self.put_token(TokenType::Semicolon),
-            '*' => self.put_token(TokenType::Star),
+            '(' => self.put_token(TokenKind::LeftParen),
+            ')' => self.put_token(TokenKind::RightParen),
+            '{' => self.put_token(TokenKind::LeftBrace),
+            '}' => self.put_token(TokenKind::RightBrace),
+            ',' => self.put_token(TokenKind::Comma),
+            '.' => self.put_token(TokenKind::Dot),
+            '-' => self.put_token(TokenKind::Minus),
+            '+' => self.put_token(TokenKind::Plus),
+            ';' => self.put_token(TokenKind::Semicolon),
+            '*' => self.put_token(TokenKind::Star),
             '!' => {
                 let tok = self
                     .is_next('=')
-                    .then(|| TokenType::Ne)
-                    .unwrap_or(TokenType::Bang);
+                    .then(|| TokenKind::Ne)
+                    .unwrap_or(TokenKind::Bang);
                 self.put_token(tok);
             }
             '=' => {
                 let tok = self
                     .is_next('=')
-                    .then(|| TokenType::EqEq)
-                    .unwrap_or(TokenType::Eq);
+                    .then(|| TokenKind::EqEq)
+                    .unwrap_or(TokenKind::Eq);
                 self.put_token(tok);
             }
             '<' => {
                 let tok = self
                     .is_next('=')
-                    .then(|| TokenType::Le)
-                    .unwrap_or(TokenType::Lt);
+                    .then(|| TokenKind::Le)
+                    .unwrap_or(TokenKind::Lt);
                 self.put_token(tok);
             }
             '>' => {
                 let tok = self
                     .is_next('=')
-                    .then(|| TokenType::Ge)
-                    .unwrap_or(TokenType::Gt);
+                    .then(|| TokenKind::Ge)
+                    .unwrap_or(TokenKind::Gt);
                 self.put_token(tok);
             }
             '/' => {
@@ -96,7 +96,7 @@ impl Scanner {
                         self.advance();
                     }
                 } else {
-                    self.put_token(TokenType::Slash)
+                    self.put_token(TokenKind::Slash)
                 }
             }
             ' ' | '\r' | '\t' => {}
@@ -128,14 +128,14 @@ impl Scanner {
         self.source[i..i + 1].chars().next().unwrap()
     }
 
-    fn add_token(&mut self, kind: TokenType, literal: Literal) {
+    fn add_token(&mut self, kind: TokenKind, literal: Literal) {
         let text = &self.source[self.start..self.current];
 
         self.tokens
             .push(Token::new(kind, text.to_string(), literal, self.line))
     }
 
-    fn put_token(&mut self, kind: TokenType) {
+    fn put_token(&mut self, kind: TokenKind) {
         self.add_token(kind, Literal::None);
     }
 
@@ -176,7 +176,7 @@ impl Scanner {
         self.advance();
 
         let value = &self.source[self.start + 1..self.current - 1];
-        self.add_token(TokenType::String, Literal::String(value.to_string()));
+        self.add_token(TokenKind::String, Literal::String(value.to_string()));
     }
 
     fn number(&mut self) {
@@ -193,7 +193,7 @@ impl Scanner {
         }
 
         self.add_token(
-            TokenType::Number,
+            TokenKind::Number,
             Literal::Number(self.source[self.start..self.current].parse().unwrap()),
         )
     }
@@ -209,30 +209,30 @@ impl Scanner {
 
         let text = &self.source[self.start..self.current];
         let h = Self::keywords();
-        let kind = h.get(text).unwrap_or(&TokenType::Identifier);
+        let kind = h.get(text).unwrap_or(&TokenKind::Identifier);
 
         self.put_token(*kind)
     }
 
-    pub fn keywords() -> HashMap<String, TokenType> {
+    pub fn keywords() -> HashMap<String, TokenKind> {
         let mut hash = HashMap::new();
 
-        hash.insert("and", TokenType::And);
-        hash.insert("class", TokenType::Class);
-        hash.insert("else", TokenType::Else);
-        hash.insert("false", TokenType::False);
-        hash.insert("for", TokenType::For);
-        hash.insert("fun", TokenType::Fn);
-        hash.insert("if", TokenType::If);
-        hash.insert("nil", TokenType::None);
-        hash.insert("or", TokenType::Or);
-        hash.insert("print", TokenType::Print);
-        hash.insert("return", TokenType::Return);
-        hash.insert("super", TokenType::Super);
-        hash.insert("this", TokenType::This);
-        hash.insert("true", TokenType::True);
-        hash.insert("var", TokenType::Var);
-        hash.insert("while", TokenType::While);
+        hash.insert("and", TokenKind::And);
+        hash.insert("class", TokenKind::Class);
+        hash.insert("else", TokenKind::Else);
+        hash.insert("false", TokenKind::False);
+        hash.insert("for", TokenKind::For);
+        hash.insert("fun", TokenKind::Fn);
+        hash.insert("if", TokenKind::If);
+        hash.insert("nil", TokenKind::None);
+        hash.insert("or", TokenKind::Or);
+        hash.insert("print", TokenKind::Print);
+        hash.insert("return", TokenKind::Return);
+        hash.insert("super", TokenKind::Super);
+        hash.insert("this", TokenKind::This);
+        hash.insert("true", TokenKind::True);
+        hash.insert("var", TokenKind::Var);
+        hash.insert("while", TokenKind::While);
 
         hash.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
     }

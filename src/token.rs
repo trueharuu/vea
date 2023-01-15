@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use crate::literal::Literal;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum TokenType {
+pub enum TokenKind {
     LeftParen,
     RightParen,
     LeftBrace,
@@ -45,7 +45,7 @@ pub enum TokenType {
     Eof,
 }
 
-impl std::fmt::Display for TokenType {
+impl std::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
@@ -53,14 +53,14 @@ impl std::fmt::Display for TokenType {
 
 #[derive(Clone)]
 pub struct Token {
-    pub kind: TokenType,
+    pub kind: TokenKind,
     pub lexeme: String,
     pub literal: Literal,
     pub line: usize,
 }
 
 impl Token {
-    pub fn new(kind: TokenType, lexeme: String, literal: Literal, line: usize) -> Self {
+    pub fn new(kind: TokenKind, lexeme: String, literal: Literal, line: usize) -> Self {
         Self {
             kind,
             lexeme,

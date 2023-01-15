@@ -49,7 +49,7 @@ impl Expr {
     }
 }
 
-pub trait Visitor<R> {
+pub trait Visitor<R: ?Sized> {
     fn visit_assign_expr(&self, expr: &Expr) -> R;
     fn visit_binary_expr(&self, expr: &Expr) -> R;
     fn visit_call_expr(&self, expr: &Expr) -> R;
@@ -65,8 +65,15 @@ pub trait Visitor<R> {
 }
 
 impl Not for Expr {
-  type Output = Box<Self>;
-  fn not(self) -> Self::Output {
-      Box::new(self)
-  }
+    type Output = Box<Self>;
+    fn not(self) -> Self::Output {
+        Box::new(self)
+    }
+}
+
+impl Not for &Expr {
+    type Output = Box<Expr>;
+    fn not(self) -> Self::Output {
+        Box::new(*self)
+    }
 }

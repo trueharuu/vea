@@ -1,4 +1,9 @@
-use crate::scanner::Scanner;
+use crate::{
+    ast_printer::AstPrinter,
+    parser::Parser,
+    scanner::Scanner,
+    token::{Token, TokenKind},
+};
 
 #[derive(Copy, Clone)]
 pub struct Lox {
@@ -19,7 +24,6 @@ impl Lox {
     //     // } else {
     //     //     self.run_prompt();
     //     // }
-
 
     // }
 
@@ -52,11 +56,30 @@ impl Lox {
 
     pub fn run(&mut self, line: String) {
         let mut tokens = Scanner::new(line, *self);
-        println!("{:#?}", tokens.scan_tokens());
+        let mut parser = Parser::new(tokens.scan_tokens().to_vec(), *self);
+        let expr = parser.parse();
+
+        if self.had_err || expr.is_none() {
+            return;
+        }
+
+        println!("{}", AstPrinter.print(expr.unwrap()))
     }
 
     pub fn error(&mut self, line: usize, message: String) {
         self.report(line, "".to_owned(), message);
+    }
+
+    pub fn error_on(&mut self, token: Token, message: String) {
+        self.report(
+            token.line,
+            if token.kind == TokenKind::Eof {
+                " at and".to_string()
+            } else {
+                " at '".to_string() + &token.lexeme + "'"
+            },
+            message,
+        )
     }
 
     pub fn report(&mut self, line: usize, here: String, message: String) {

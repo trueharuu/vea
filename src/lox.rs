@@ -2,17 +2,22 @@ use crate::{
     ast_printer::AstPrinter,
     parser::Parser,
     scanner::Scanner,
-    token::{Token, TokenKind},
+    token::{Token, TokenKind}, interpreter::{RuntimeError, Interpreter},
 };
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Lox {
     had_err: bool,
+    had_runtime_err: bool,
 }
 
 impl Lox {
     pub fn new() -> Self {
-        Self { had_err: false }
+        Self { had_err: false, had_runtime_err: false }
+    }
+
+    pub fn interpreter(&self) -> Interpreter {
+        Interpreter::new(Box::new(self.clone()))
     }
 
     // pub fn exe(&mut self, argv: &mut Peekable<IntoIter<&str>>) {
@@ -55,15 +60,19 @@ impl Lox {
     // }
 
     pub fn run(&mut self, line: String) {
-        let mut tokens = Scanner::new(line, *self);
-        let mut parser = Parser::new(tokens.scan_tokens().to_vec(), *self);
-        let expr = parser.parse();
+        let mut tokens = Scanner::new(line, self.clone());
+        let mut parser = Parser::new(tokens.scan_tokens().to_vec(), self.clone());
+        let statements = parser.parse();
 
-        if self.had_err || expr.is_none() {
+        if self.had_err || statements.is_none() {
             return;
         }
 
-        println!("{}", AstPrinter.print(expr.unwrap()))
+        if self.had_runtime_err {
+            panic!("had a runtime error, gn")
+        }
+
+        self.interpreter().interpret(Ok(statements.unwrap()))
     }
 
     pub fn error(&mut self, line: usize, message: String) {
@@ -80,6 +89,11 @@ impl Lox {
             },
             message,
         )
+    }
+
+    pub fn runtime_err(&mut self, err: RuntimeError) {
+        println!("{}\n[line {}]", err.1, err.0.line);
+        self.had_runtime_err = true;
     }
 
     pub fn report(&mut self, line: usize, here: String, message: String) {

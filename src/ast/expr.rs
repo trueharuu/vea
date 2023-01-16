@@ -31,7 +31,7 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn accept<T>(&self, visitor: &impl Visitor<T>) -> T {
+    pub fn accept<T>(&self, visitor: &impl ExprVisitor<T>) -> T {
         match self {
             Expr::Assign(_, _) => visitor.visit_assign_expr(self),
             Expr::Binary(_, _, _) => visitor.visit_binary_expr(self),
@@ -49,7 +49,7 @@ impl Expr {
     }
 }
 
-pub trait Visitor<R: ?Sized> {
+pub trait ExprVisitor<R: ?Sized> {
     fn visit_assign_expr(&self, expr: &Expr) -> R;
     fn visit_binary_expr(&self, expr: &Expr) -> R;
     fn visit_call_expr(&self, expr: &Expr) -> R;
@@ -74,6 +74,6 @@ impl Not for Expr {
 impl Not for &Expr {
     type Output = Box<Expr>;
     fn not(self) -> Self::Output {
-        Box::new(*self)
+        Box::new(self.clone())
     }
 }

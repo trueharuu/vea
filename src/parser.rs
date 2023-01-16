@@ -1,10 +1,10 @@
-use std::{error::Error, fmt::Display};
+use std::{ error::Error, fmt::Display };
 
 use crate::{
-    ast::expr::Expr,
+    ast::{ expr::Expr, statement::Stmt },
     literal::Literal,
     lox::Lox,
-    token::{Token, TokenKind},
+    token::{ Token, TokenKind },
 };
 
 #[derive(Clone)]
@@ -23,12 +23,104 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Option<Expr> {
-        self.expr().ok()
+    // pub fn parse(&mut self) -> Option<Vec<Stmt>> {
+    //     let statements = Vec::new();
+
+    //     while !self.is_at_end() {
+    //         statements.push(self.statement())
+    //     }
+    // }
+
+    pub fn parse(&mut self) -> Option<Vec<Stmt>> {
+        let mut statements = Vec::new();
+
+        while !self.is_at_end() {
+            let result = self.declaration();
+            if let Some(r) = result {
+                statements.push(r);
+            } else {
+                return None;
+            }
+        }
+
+        Some(statements)
+    }
+
+    fn declaration(&mut self) -> Option<Stmt> {
+        let r = if self.is([TokenKind::Var]) { self.var_declaration() } else { self.statement() };
+
+        if let Ok(n) = r {
+            Some(n)
+        } else {
+            self.sync();
+            None
+        }
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt, ParseError> {
+        let name = self.consume(TokenKind::Identifier, "expect variable name".to_string());
+
+        let mut initializer = None;
+
+        if self.is([TokenKind::Eq]) {
+            let expr = self.expr();
+            if let Ok(e) = expr {
+                initializer = Some(e);
+            }
+        }
+
+        self.consume(TokenKind::Semicolon, "expect ';' after variable declaration".to_string());
+        if initializer.is_none() {
+            return Err(self.error(name.clone(), format!("missing initializer for {}", name)));
+        } else {
+            return Ok(Stmt::Var(name, initializer.unwrap()));
+        }
+    }
+
+    fn statement(&mut self) -> Result<Stmt, ParseError> {
+        if self.is([TokenKind::Print]) {
+            return self.print_statement();
+        }
+
+        return self.expression_statement();
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt, ParseError> {
+        let value = self.expr();
+        self.consume(TokenKind::Semicolon, "expected ';' after value".to_string());
+        return value.map(|e| Stmt::Print(e));
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt, ParseError> {
+        let value = self.expr();
+        self.consume(TokenKind::Semicolon, "expected ';' after value".to_string());
+        return value.map(|e| Stmt::Expression(e));
     }
 
     fn expr(&mut self) -> Result<Expr, ParseError> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Expr, ParseError> {
+        let expr = self.equality();
+
+        if self.is([TokenKind::Eq]) {
+            // assume we have something before this.
+            let eq = self.prev().unwrap();
+            let va = self.assignment();
+
+            if let Ok(v) = va.clone() && let Ok(e) = expr.clone() {
+                if let Expr::Variable(name) = e {
+                    return Ok(Expr::Assign(name, !v));
+                } else {
+                    self.error(eq.clone(), format!("invalid assignment target '{eq}'"));
+                }
+            } else {
+                return va;
+            }
+        }
+
+        expr
     }
 
     fn equality(&mut self) -> Result<Expr, ParseError> {
@@ -39,7 +131,7 @@ impl Parser {
                 let operator = self.prev();
                 let right = self.comparison();
                 if let Ok(r) = right {
-                    expr = Ok(Expr::Binary(!e.clone(), operator.unwrap(), !r))
+                    expr = Ok(Expr::Binary(!e.clone(), operator.unwrap(), !r));
                 }
             }
         }
@@ -55,7 +147,7 @@ impl Parser {
                 let operator = self.prev();
                 let right = self.term();
                 if let Ok(r) = right {
-                    expr = Ok(Expr::Binary(!e.clone(), operator.unwrap(), !r))
+                    expr = Ok(Expr::Binary(!e.clone(), operator.unwrap(), !r));
                 }
             }
         }
@@ -72,7 +164,7 @@ impl Parser {
                 let right = self.factor();
 
                 if let Ok(r) = right {
-                    expr = Ok(Expr::Binary(!e.clone(), operator.unwrap(), !r))
+                    expr = Ok(Expr::Binary(!e.clone(), operator.unwrap(), !r));
                 }
             }
         }
@@ -128,6 +220,10 @@ impl Parser {
             return Ok(Expr::Literal(self.prev().unwrap().literal));
         }
 
+        if self.is([TokenKind::Identifier]) {
+            return Ok(Expr::Variable(self.prev().unwrap()));
+        }
+
         if self.is([TokenKind::LeftParen]) {
             let expr = self.expr();
             self.consume(TokenKind::RightParen, "Expected ')'".to_string());
@@ -151,13 +247,15 @@ impl Parser {
             }
 
             match self.peek().kind {
-                TokenKind::Class
+                | TokenKind::Class
                 | TokenKind::Fn
                 | TokenKind::Var
                 | TokenKind::For
                 | TokenKind::If
                 | TokenKind::While
-                | TokenKind::Print => return,
+                | TokenKind::Print => {
+                    return;
+                }
                 _ => {}
             }
         }

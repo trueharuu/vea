@@ -1,7 +1,4 @@
-use std::{
-    fmt::Display,
-    ops::{Div, Mul, Neg, Not, Sub},
-};
+use std::{ fmt::Display, ops::{ Div, Mul, Neg, Not, Sub }, sync::Mutex };
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
@@ -17,18 +14,14 @@ impl Literal {
             Literal::Boolean(b) => b.to_string(),
             Literal::None => "None".to_string(),
             Literal::Number(d) => d.to_string(),
-            Literal::String(s) => *s,
+            Literal::String(s) => s.clone(),
         }
     }
 
     pub fn into_number(&self) -> f64 {
         match self {
             Literal::Boolean(b) => {
-                if *b {
-                    1.0
-                } else {
-                    0.0
-                }
+                if *b { 1.0 } else { 0.0 }
             }
             Literal::None => f64::NAN,
             Literal::Number(d) => *d,
@@ -48,16 +41,12 @@ impl Literal {
 
 impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Literal::Boolean(b) => b.to_string(),
-                Literal::None => "None".to_string(),
-                Literal::Number(d) => d.to_string(),
-                Literal::String(s) => s.to_string(),
-            }
-        )
+        write!(f, "{}", match self {
+            Literal::Boolean(b) => b.to_string(),
+            Literal::None => "None".to_string(),
+            Literal::Number(d) => d.to_string(),
+            Literal::String(s) => s.to_string(),
+        })
     }
 }
 

@@ -1,11 +1,11 @@
 use crate::{
-    ast::expr::{Expr, Visitor},
+    ast::expr::{Expr, ExprVisitor},
     literal::Literal,
 };
 
 pub struct AstPrinter;
 
-impl Visitor<String> for AstPrinter {
+impl ExprVisitor<String> for AstPrinter {
     fn visit_binary_expr(&self, expr: &crate::ast::expr::Expr) -> String {
         if let Expr::Binary(left, operator, right) = expr {
             self.parenthesize(

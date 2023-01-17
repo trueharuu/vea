@@ -58,22 +58,25 @@ impl Parser {
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, ParseError> {
-        let name = self.consume(TokenKind::Identifier, "expect variable name".to_string());
+        let n = self.consume(TokenKind::Identifier, "expect variable name".to_string());
+        if let Ok(name) = &n {
+            let mut initializer = None;
 
-        let mut initializer = None;
-
-        if self.is([TokenKind::Eq]) {
-            let expr = self.expr();
-            if let Ok(e) = expr {
-                initializer = Some(e);
+            if self.is([TokenKind::Eq]) {
+                let expr = self.expr();
+                if let Ok(e) = expr {
+                    initializer = Some(e);
+                }
             }
-        }
 
-        self.consume(TokenKind::Semicolon, "expect ';' after variable declaration".to_string());
-        if initializer.is_none() {
-            return Err(self.error(name.clone(), format!("missing initializer for {}", name)));
+            self.consume(TokenKind::Semicolon, "expect ';' after variable declaration".to_string());
+            if initializer.is_none() {
+                return Err(self.error(name.clone(), format!("missing initializer for {}", name)));
+            } else {
+                return Ok(Stmt::Var(name.clone(), initializer.unwrap()));
+            }
         } else {
-            return Ok(Stmt::Var(name, initializer.unwrap()));
+            Err(n.unwrap_err())
         }
     }
 
@@ -82,7 +85,23 @@ impl Parser {
             return self.print_statement();
         }
 
+        if self.is([TokenKind::LeftBrace]) {
+            let x = self.block();
+            return Ok(Stmt::Block(x));
+        }
+
         return self.expression_statement();
+    }
+
+    fn block(&mut self) -> Vec<Stmt> {
+        let mut statements = Vec::new();
+        while !self.is([TokenKind::RightBrace]) && !self.is_at_end() {
+            statements.push(self.declaration().unwrap());
+        }
+
+        self.consume(TokenKind::RightBrace, "expected '}' after block".to_string());
+
+        return statements;
     }
 
     fn print_statement(&mut self) -> Result<Stmt, ParseError> {
@@ -263,13 +282,13 @@ impl Parser {
         self.next();
     }
 
-    fn consume(&mut self, kind: TokenKind, message: String) -> Token {
+    fn consume(&mut self, kind: TokenKind, message: String) -> Result<Token, ParseError> {
         if self.check(kind) {
-            return self.next().unwrap();
+            return Ok(self.next().unwrap());
         }
 
         let p = self.peek();
-        panic!("{}", self.error(p, message))
+        Err(self.error(p, message))
     }
 
     fn error(&mut self, token: Token, message: String) -> ParseError {
@@ -323,7 +342,7 @@ impl Parser {
 pub struct ParseError();
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

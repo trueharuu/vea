@@ -44,7 +44,7 @@ impl Stmt {
 }
 
 pub trait StmtVisitor<R: ?Sized> {
-    fn visit_block_stmt(&self, stmt: &Stmt) -> R;
+    fn visit_block_stmt(&mut self, stmt: &Stmt) -> R;
     fn visit_class_stmt(&self, stmt: &Stmt) -> R;
     fn visit_expression_stmt(&self, stmt: &Stmt) -> R;
     fn visit_fn_stmt(&self, stmt: &Stmt) -> R;

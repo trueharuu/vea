@@ -1,4 +1,4 @@
-use std::{ error::Error, fmt::Display, ops::BitOr };
+use std::{ error::Error, fmt::Display, ops::BitOr, cell::RefCell, rc::Rc };
 
 use crate::{
     ast::{ expr::{ Expr, ExprVisitor }, statement::{ StmtVisitor, Stmt } },
@@ -11,12 +11,12 @@ use crate::{
 #[derive(Clone)]
 pub struct Interpreter {
     pub lox: Box<Lox>,
-    pub env: Env,
+    pub env: Rc<RefCell<Env>>,
 }
 
 impl Interpreter {
     pub fn new(lox: Box<Lox>) -> Self {
-        Self { lox, env: Env::new() }
+        Self { lox, env: Rc::new(RefCell::new(Env::new())) }
     }
 
     pub fn eval(&self, expr: &Expr) -> Result<Value, RuntimeError> {
@@ -80,6 +80,17 @@ impl Interpreter {
 
     fn stringify(&self, obj: Literal) -> String {
         obj.to_string()
+    }
+
+    fn exec_block(&mut self, statements: Vec<Stmt>, env: Env) -> () {
+        let prev = self.env.clone();
+        self.env = Rc::new(RefCell::new(env));
+
+        for mut s in statements {
+            self.exec(&mut s);
+        }
+
+        self.env = prev.clone();
     }
 }
 
@@ -245,7 +256,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
         if let Expr::Assign(name, expr) = expr {
             let value = self.eval(&**expr);
             if let Ok(v) = value.clone() {
-                self.env.assign(name.clone(), self.collapse(&v));
+                self.env.borrow_mut().assign(name.clone(), self.collapse(&v));
             }
 
             value
@@ -280,7 +291,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
 
     fn visit_variable_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {
         if let Expr::Variable(c) = expr {
-            let rf = self.env.get(c.clone());
+            let rf = self.env.borrow().get(c.clone());
             if let Ok(r) = rf {
                 Ok(Value::Literal(r))
             } else {
@@ -309,8 +320,13 @@ impl StmtVisitor<()> for Interpreter {
         }
     }
 
-    fn visit_block_stmt(&self, stmt: &Stmt) -> () {
-        todo!()
+    fn visit_block_stmt(&mut self, stmt: &Stmt) -> () {
+        if let Stmt::Block(statements) = stmt {
+            self.exec_block(
+                statements.to_vec(),
+                Env::with_parent(Box::new(self.env.clone().borrow_mut().to_owned()))
+            );
+        }
     }
 
     fn visit_class_stmt(&self, stmt: &Stmt) -> () {
@@ -334,7 +350,7 @@ impl StmtVisitor<()> for Interpreter {
             let value = self.eval(initializer);
             if let Ok(r) = value {
                 let v = &self | &r;
-                self.env.define(name.lexeme.clone(), v);
+                self.env.borrow().define(name.lexeme.clone(), v);
             }
         }
     }

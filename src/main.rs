@@ -13,8 +13,25 @@ pub mod scanner;
 pub mod token;
 pub mod env;
 fn main() {
-    let r = r#"var a = 1;
-    var b = 2;
-    print a + b;"#;
+    let r =
+        r#"var a = "global a";
+    var b = "global b";
+    var c = "global c";
+    {
+      var a = "outer a";
+      var b = "outer b";
+      {
+        var a = "inner a";
+        print a;
+        print b;
+        print c;
+      }
+      print a;
+      print b;
+      print c;
+    }
+    print a;
+    print b;
+    print c;"#;
     Lox::new().run(r.to_string())
 }

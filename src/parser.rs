@@ -1,10 +1,10 @@
-use std::{ error::Error, fmt::Display };
+use std::{error::Error, fmt::Display};
 
 use crate::{
-    ast::{ expr::Expr, statement::Stmt },
+    ast::{expr::Expr, statement::Stmt},
     literal::Literal,
     lox::Lox,
-    token::{ Token, TokenKind },
+    token::{Token, TokenKind},
 };
 
 #[derive(Clone)]
@@ -47,7 +47,11 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Option<Stmt> {
-        let r = if self.is([TokenKind::Var]) { self.var_declaration() } else { self.statement() };
+        let r = if self.is([TokenKind::Var]) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        };
 
         if let Ok(n) = r {
             Some(n)
@@ -69,20 +73,35 @@ impl Parser {
                 }
             }
 
-            self.consume(TokenKind::Semicolon, "expect ';' after variable declaration".to_string());
-            if initializer.is_none() {
-                return Err(self.error(name.clone(), format!("missing initializer for {}", name)));
-            } else {
-                return Ok(Stmt::Var(name.clone(), initializer.unwrap()));
-            }
+            self.consume(
+                TokenKind::Semicolon,
+                "expect ';' after variable declaration".to_string(),
+            );
+            // if initializer.is_none() {
+                // return Err(self.error(name.clone(), format!("missing initializer for {}", name)));
+            // } else {
+                return Ok(Stmt::Var(name.clone(), initializer.unwrap_or(Expr::Literal(Literal::None))));
+            // }
         } else {
             Err(n.unwrap_err())
         }
     }
 
     fn statement(&mut self) -> Result<Stmt, ParseError> {
+        if self.is([TokenKind::For]) {
+            return self.for_statement();
+        }
+
+        if self.is([TokenKind::If]) {
+            return self.if_statement();
+        }
+
         if self.is([TokenKind::Print]) {
             return self.print_statement();
+        }
+
+        if self.is([TokenKind::While]) {
+            return self.while_statement();
         }
 
         if self.is([TokenKind::LeftBrace]) {
@@ -93,13 +112,170 @@ impl Parser {
         return self.expression_statement();
     }
 
+    fn for_statement(&mut self) -> Result<Stmt, ParseError> {
+        let l = self.consume(TokenKind::LeftParen, "expected '(' after while".to_string());
+
+        if l.is_err() {
+            return Err(l.unwrap_err());
+        }
+
+        let initializer;
+        if self.is([TokenKind::Semicolon]) {
+            initializer = None;
+        } else if self.is([TokenKind::Var]) {
+            let v = self.var_declaration();
+            if v.is_err() {
+                return v;
+            }
+
+            initializer = Some(v.unwrap());
+        } else {
+            let e = self.expression_statement();
+            if e.is_err() {
+                return e;
+            }
+
+            initializer = Some(e.unwrap())
+        }
+
+        let mut cond = None;
+        if !self.check(TokenKind::Semicolon) {
+            let e = self.expr();
+            if e.is_err() {
+                return Err(e.unwrap_err());
+            }
+
+            cond = Some(e.unwrap())
+        }
+
+        let sc = self.consume(
+            TokenKind::Semicolon,
+            "expected ';' after loop condition".to_string(),
+        );
+        if sc.is_err() {
+            return Err(sc.unwrap_err());
+        }
+
+        let mut incr = None;
+        if !self.check(TokenKind::RightParen) {
+            let e = self.expr();
+            if e.is_err() {
+                return Err(e.unwrap_err());
+            }
+
+            incr = Some(e.unwrap())
+        }
+
+        let r = self.consume(
+            TokenKind::RightParen,
+            "expected ')' after for clause".to_string(),
+        );
+
+        if r.is_err() {
+            return Err(r.unwrap_err());
+        }
+
+        let mut body = self.statement();
+
+        if let Some(i) = incr {
+            body = body.map(|ok| Stmt::Block(vec![ok, Stmt::Expression(i)]))
+        }
+
+        if cond.is_none() {
+            cond = Some(Expr::Literal(Literal::Boolean(true)))
+        }
+
+        body = body.map(|ok| Stmt::While(cond.unwrap(), Box::new(ok)));
+
+        if let Some(n) = initializer {
+            body = body.map(|ok| Stmt::Block(vec![n, ok]))
+        }
+
+        body
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt, ParseError> {
+        let l = self.consume(TokenKind::LeftParen, "expected '(' after while".to_string());
+        if l.is_err() {
+            return Err(l.unwrap_err());
+        }
+
+        let condition = self.expr();
+
+        if condition.is_err() {
+            return Err(condition.unwrap_err());
+        }
+
+        let r = self.consume(
+            TokenKind::RightParen,
+            "expected ')' to close while".to_string(),
+        );
+
+        if r.is_err() {
+            return Err(r.unwrap_err());
+        }
+
+        let body = self.statement();
+
+        if body.is_err() {
+            return body;
+        }
+
+        return Ok(Stmt::While(condition.unwrap(), Box::new(body.unwrap())));
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt, ParseError> {
+        let l = self.consume(TokenKind::LeftParen, "expected '(' after if".to_string());
+
+        if l.is_err() {
+            return Err(l.unwrap_err());
+        }
+
+        let condition = self.expr();
+
+        if condition.is_err() {
+            return Err(condition.unwrap_err());
+        }
+
+        let r = self.consume(
+            TokenKind::RightParen,
+            "expected ')' to close if".to_string(),
+        );
+
+        if r.is_err() {
+            return Err(r.unwrap_err());
+        }
+
+        let then = self.statement();
+        if then.is_err() {
+            return Err(then.unwrap_err());
+        }
+
+        let mut elsn = None;
+
+        if self.is([TokenKind::Else]) {
+            let parse = self.statement();
+
+            if parse.is_err() {
+                return Err(parse.unwrap_err());
+            }
+
+            elsn = Some(Box::new(parse.unwrap()))
+        }
+
+        Ok(Stmt::If(condition.unwrap(), !then.unwrap(), elsn))
+    }
+
     fn block(&mut self) -> Vec<Stmt> {
         let mut statements = Vec::new();
-        while !self.is([TokenKind::RightBrace]) && !self.is_at_end() {
+        while !self.check(TokenKind::RightBrace) && !self.is_at_end() {
             statements.push(self.declaration().unwrap());
         }
 
-        self.consume(TokenKind::RightBrace, "expected '}' after block".to_string());
+        self.consume(
+            TokenKind::RightBrace,
+            "expected '}' after block".to_string(),
+        );
 
         return statements;
     }
@@ -121,7 +297,11 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr, ParseError> {
-        let expr = self.equality();
+        let expr = self.or();
+
+        if expr.is_err() {
+            return Err(expr.unwrap_err());
+        }
 
         if self.is([TokenKind::Eq]) {
             // assume we have something before this.
@@ -137,6 +317,53 @@ impl Parser {
             } else {
                 return va;
             }
+        }
+
+        expr
+    }
+
+    fn or(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.and();
+
+        if expr.is_err() {
+            return expr;
+        }
+
+        while self.is([TokenKind::Or]) {
+            let op = self.prev().unwrap();
+            let right = self.and();
+            if right.is_err() {
+                return right;
+            }
+            expr = Ok(Expr::Logical(
+                Box::new(expr.unwrap()),
+                op,
+                Box::new(right.unwrap()),
+            ));
+        }
+
+        expr
+    }
+
+    fn and(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.equality();
+        if expr.is_err() {
+            return expr;
+        }
+
+        while self.is([TokenKind::And]) {
+            let op = self.prev().unwrap();
+            let right = self.equality();
+
+            if right.is_err() {
+                return Err(right.unwrap_err());
+            }
+
+            expr = Ok(Expr::Logical(
+                Box::new(expr.unwrap()),
+                op,
+                Box::new(right.unwrap()),
+            ));
         }
 
         expr
@@ -266,7 +493,7 @@ impl Parser {
             }
 
             match self.peek().kind {
-                | TokenKind::Class
+                TokenKind::Class
                 | TokenKind::Fn
                 | TokenKind::Var
                 | TokenKind::For
@@ -283,6 +510,7 @@ impl Parser {
     }
 
     fn consume(&mut self, kind: TokenKind, message: String) -> Result<Token, ParseError> {
+        
         if self.check(kind) {
             return Ok(self.next().unwrap());
         }

@@ -2,7 +2,7 @@ use std::{ collections::HashMap, rc::Rc, cell::RefCell };
 
 use crate::{ literal::Literal, token::Token, interpreter::RuntimeError };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Env {
     values: Rc<RefCell<HashMap<String, Literal>>>,
     enclosing: Option<Box<Env>>,

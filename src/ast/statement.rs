@@ -15,7 +15,7 @@ pub enum Stmt {
     // name, params, body
     Fn(Token, Vec<Token>, Vec<Stmt>),
     // condition, then, else
-    If(Expr, Box<Stmt>, Box<Stmt>),
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     // expr
     Print(Expr),
     // keyword, value
@@ -48,11 +48,11 @@ pub trait StmtVisitor<R: ?Sized> {
     fn visit_class_stmt(&self, stmt: &Stmt) -> R;
     fn visit_expression_stmt(&self, stmt: &Stmt) -> R;
     fn visit_fn_stmt(&self, stmt: &Stmt) -> R;
-    fn visit_if_stmt(&self, stmt: &Stmt) -> R;
+    fn visit_if_stmt(&mut self, stmt: &mut Stmt) -> R;
     fn visit_print_stmt(&self, stmt: &Stmt) -> R;
     fn visit_return_stmt(&self, stmt: &Stmt) -> R;
     fn visit_var_stmt(&mut self, stmt: &Stmt) -> R;
-    fn visit_while_stmt(&self, stmt: &Stmt) -> R;
+    fn visit_while_stmt(&mut self, stmt: &mut Stmt) -> R;
 }
 
 impl Not for Stmt {

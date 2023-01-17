@@ -14,15 +14,11 @@ pub mod token;
 pub mod env;
 fn main() {
     let r =
-        r#"print 0.1"#;
-    // inner a
-    // outer b
-    // global c
-    // outer a
-    // outer b
-    // global c
-    // global a
-    // global b
-    // global c
+        r#"var i = 0;
+        while (i < 10) {
+            print i;
+            i = i + 1;
+        }"#;
     Lox::new().run(r.to_string())
 }
+

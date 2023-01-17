@@ -14,24 +14,15 @@ pub mod token;
 pub mod env;
 fn main() {
     let r =
-        r#"var a = "global a";
-    var b = "global b";
-    var c = "global c";
-    {
-      var a = "outer a";
-      var b = "outer b";
-      {
-        var a = "inner a";
-        print a;
-        print b;
-        print c;
-      }
-      print a;
-      print b;
-      print c;
-    }
-    print a;
-    print b;
-    print c;"#;
+        r#"print 0.1"#;
+    // inner a
+    // outer b
+    // global c
+    // outer a
+    // outer b
+    // global c
+    // global a
+    // global b
+    // global c
     Lox::new().run(r.to_string())
 }

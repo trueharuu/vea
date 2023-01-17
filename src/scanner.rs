@@ -184,7 +184,9 @@ impl Scanner {
             self.advance();
         }
 
+        let mut float = false;
         if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+            float = true;
             self.advance();
 
             while self.peek().is_ascii_digit() {
@@ -193,8 +195,8 @@ impl Scanner {
         }
 
         self.add_token(
-            TokenKind::Number,
-            Literal::Number(self.source[self.start..self.current].parse().unwrap()),
+            if float { TokenKind::Float } else { TokenKind::Integer },
+            Literal::Float(self.source[self.start..self.current].parse().unwrap()),
         )
     }
 

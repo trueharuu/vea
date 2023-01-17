@@ -38,7 +38,7 @@ impl Interpreter {
     }
 
     fn check_number_operand(&self, operator: Token, operand: Literal) -> Result<(), RuntimeError> {
-        if !matches!(operand, Literal::Number(_)) {
+        if !matches!(operand, Literal::Float(_)) {
             Err(
                 RuntimeError::new(
                     operator.clone(),
@@ -56,7 +56,7 @@ impl Interpreter {
         left: Literal,
         right: Literal
     ) -> Result<(), RuntimeError> {
-        if !matches!(left, Literal::Number(_)) || !matches!(right, Literal::Number(_)) {
+        if !matches!(left, Literal::Float(_)) || !matches!(right, Literal::Float(_)) {
             Err(
                 RuntimeError::new(
                     operator.clone(),
@@ -138,7 +138,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 match op.kind {
                     TokenKind::Minus => {
                         let ck = self.check_number_operand(op.clone(), self | &right);
-                        ck.map(|_| Value::Literal(Literal::Number(-self.collapse(&right))))
+                        ck.map(|_| Value::Literal(Literal::Float(-self.collapse(&right))))
                     }
                     TokenKind::Bang => Ok(Value::Literal(Literal::Boolean(!self.collapse(&right)))),
                     _ => unreachable!(),
@@ -161,7 +161,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                     TokenKind::Minus => {
                         self.check_number_operands(op.clone(), self | &left, self | &right).map(|_|
                             Value::Literal(
-                                Literal::Number(self.collapse(&left) - self.collapse(&right))
+                                Literal::Float(self.collapse(&left) - self.collapse(&right))
                             )
                         )
                     }
@@ -173,7 +173,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                         );
                         ck.map(|_|
                             Value::Literal(
-                                Literal::Number(self.collapse(&left) / self.collapse(&right))
+                                Literal::Float(self.collapse(&left) / self.collapse(&right))
                             )
                         )
                     }
@@ -185,7 +185,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                         );
                         ck.map(|_|
                             Value::Literal(
-                                Literal::Number(self.collapse(&left) * self.collapse(&right))
+                                Literal::Float(self.collapse(&left) * self.collapse(&right))
                             )
                         )
                     }
@@ -195,10 +195,10 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                     {
                         Ok(Value::Literal(Literal::String(x + &y)))
                     } else if
-                        let Literal::Number(x) = self | &left &&
-                        let Literal::Number(y) = self | &right
+                        let Literal::Float(x) = self | &left &&
+                        let Literal::Float(y) = self | &right
                     {
-                        Ok(Value::Literal(Literal::Number(x + y)))
+                        Ok(Value::Literal(Literal::Float(x + y)))
                     } else {
                         Err(
                             RuntimeError::new(

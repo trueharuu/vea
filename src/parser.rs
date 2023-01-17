@@ -235,7 +235,7 @@ impl Parser {
             return Ok(Expr::Literal(Literal::None));
         }
 
-        if self.is([TokenKind::Number, TokenKind::String]) {
+        if self.is([TokenKind::Float, TokenKind::Integer, TokenKind::String]) {
             return Ok(Expr::Literal(self.prev().unwrap().literal));
         }
 

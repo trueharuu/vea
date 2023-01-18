@@ -291,7 +291,8 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
             let raw = self.collapse(&calli.unwrap());
 
             if let Literal::Fn(_) = raw {
-                raw.call(&mut self, argv.iter().map(|x| self.collapse(&self.eval(x).unwrap())).collect());
+                // TODO: fix this stupid fucking error i hate borrowck
+                raw.call(&mut self.clone(), argv.iter().map(|x| self.collapse(&self.eval(x).unwrap())).collect());
             }
             todo!();
         } else {

@@ -275,7 +275,28 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
     }
 
     fn visit_call_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {
-        todo!();
+        if let Expr::Call(callee, paren, arguments) = expr {
+            let calli = self.eval(callee);
+
+            if calli.is_err() {
+                return calli;
+            }
+
+            let mut argv = Vec::new();
+
+            for i in arguments {
+                argv.push(*i.clone());
+            }
+
+            let raw = self.collapse(&calli.unwrap());
+
+            if let Literal::Fn(_) = raw {
+                raw.call(&mut self, argv.iter().map(|x| self.collapse(&self.eval(x).unwrap())).collect());
+            }
+            todo!();
+        } else {
+            unreachable!();
+        }
     }
 
     fn visit_get_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {

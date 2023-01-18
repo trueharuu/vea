@@ -5,6 +5,7 @@ use crate::{
     everest::Everest,
     literal::Literal,
     token::{Token, TokenKind},
+    tools::{do_while, ResultAssumptions},
 };
 
 #[derive(Clone)]
@@ -523,35 +524,39 @@ impl Parser {
     }
 
     fn finish_call(&mut self, callee: &Expr) -> Result<Expr, ParseError> {
-        let mut args = Vec::new();
-        if !self.check(TokenKind::LeftParen) {
-            let mut first = false;
-            let pk = self.peek();
-            while !first || self.is([TokenKind::Comma]) {
-                if args.len() >= 255 {
-                    return Err(self.error(pk, "can't have more than 255 args for fn".to_string()));
+        // List<Expr> arguments = new ArrayList<>();
+        let mut arguments = Vec::new();
+        // if (!check(RIGHT_PAREN))
+        if !self.check(TokenKind::RightParen) {
+            loop {
+                if arguments.len() >= 255 {
+                    let pk = self.peek();
+                    return Err(self.error(pk, "cannot have >255 arguments".to_string()));
                 }
                 let expr = self.expr();
-                if let Ok(e) = expr {
-                    args.push(Box::new(e));
-                } else {
+
+                if expr.is_err() {
                     return expr;
                 }
 
-                first = true;
+                arguments.push(Box::new(expr.unwrap()));
+
+                if !self.is([TokenKind::Comma]) {
+                    break;
+                }
             }
         }
 
-        let paren = self.consume(
+        let paren_r = self.consume(
             TokenKind::RightParen,
-            "expected ')' after fn arguments".to_string(),
+            "expected ')' after call arguments".to_string(),
         );
 
-        if paren.is_err() {
-            return Err(paren.unwrap_err());
+        if paren_r.is_err() {
+            return paren_r.assume_err();
         }
 
-        return Ok(Expr::Call(Box::new(callee.clone()), paren.unwrap(), args));
+        return Ok(Expr::Call(Box::new(callee.clone()), paren_r.unwrap(), arguments));
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {

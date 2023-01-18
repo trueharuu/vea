@@ -13,6 +13,7 @@ pub mod scanner;
 pub mod token;
 pub mod env;
 mod callable;
+mod tools;
 fn main() {
     let r =
         r#"fn f() {

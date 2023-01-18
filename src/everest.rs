@@ -6,12 +6,12 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct Lox {
+pub struct Everest {
     had_err: bool,
     had_runtime_err: bool,
 }
 
-impl Lox {
+impl Everest {
     pub fn new() -> Self {
         Self { had_err: false, had_runtime_err: false }
     }

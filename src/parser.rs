@@ -3,7 +3,7 @@ use std::{error::Error, fmt::Display};
 use crate::{
     ast::{expr::Expr, statement::Stmt},
     literal::Literal,
-    lox::Lox,
+    everest::Everest,
     token::{Token, TokenKind},
 };
 
@@ -11,11 +11,11 @@ use crate::{
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
-    lox: Lox,
+    lox: Everest,
 }
 
 impl Parser {
-    pub fn new(tokens: Vec<Token>, lox: Lox) -> Self {
+    pub fn new(tokens: Vec<Token>, lox: Everest) -> Self {
         Self {
             current: 0,
             tokens,
@@ -462,7 +462,7 @@ impl Parser {
             return Ok(Expr::Literal(Literal::None));
         }
 
-        if self.is([TokenKind::Float, TokenKind::Integer, TokenKind::String]) {
+        if self.is([TokenKind::Number, TokenKind::String]) {
             return Ok(Expr::Literal(self.prev().unwrap().literal));
         }
 

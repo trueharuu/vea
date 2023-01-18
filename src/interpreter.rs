@@ -1,24 +1,21 @@
-use std::{cell::RefCell, error::Error, fmt::Display, ops::BitOr, rc::Rc};
+use std::{ cell::RefCell, error::Error, fmt::Display, ops::BitOr, rc::Rc };
 
 use crate::{
-    ast::{
-        expr::{Expr, ExprVisitor},
-        statement::{Stmt, StmtVisitor},
-    },
+    ast::{ expr::{ Expr, ExprVisitor }, statement::{ Stmt, StmtVisitor } },
     env::Env,
     literal::Literal,
-    lox::Lox,
-    token::{Token, TokenKind},
+    everest::Everest,
+    token::{ Token, TokenKind },
 };
 
 #[derive(Clone)]
 pub struct Interpreter {
-    pub lox: Box<Lox>,
+    pub lox: Box<Everest>,
     pub env: Rc<RefCell<Env>>,
 }
 
 impl Interpreter {
-    pub fn new(lox: Box<Lox>) -> Self {
+    pub fn new(lox: Box<Everest>) -> Self {
         Self {
             lox,
             env: Rc::new(RefCell::new(Env::new())),
@@ -44,11 +41,13 @@ impl Interpreter {
     }
 
     fn check_number_operand(&self, operator: Token, operand: Literal) -> Result<(), RuntimeError> {
-        if !matches!(operand, Literal::Float(_)) {
-            Err(RuntimeError::new(
-                operator.clone(),
-                format!("operand of `{}x` must be of type number", operator.clone()),
-            ))
+        if !matches!(operand, Literal::Number(_)) {
+            Err(
+                RuntimeError::new(
+                    operator.clone(),
+                    format!("operand of `{}x` must be of type number", operator.clone())
+                )
+            )
         } else {
             Ok(())
         }
@@ -58,13 +57,15 @@ impl Interpreter {
         &self,
         operator: Token,
         left: Literal,
-        right: Literal,
+        right: Literal
     ) -> Result<(), RuntimeError> {
-        if !matches!(left, Literal::Float(_)) || !matches!(right, Literal::Float(_)) {
-            Err(RuntimeError::new(
-                operator.clone(),
-                format!("operands of `x {} y` must be numbers", operator.clone()),
-            ))
+        if !matches!(left, Literal::Number(_)) || !matches!(right, Literal::Number(_)) {
+            Err(
+                RuntimeError::new(
+                    operator.clone(),
+                    format!("operands of `x {} y` must be numbers", operator.clone())
+                )
+            )
         } else {
             Ok(())
         }
@@ -140,7 +141,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 match op.kind {
                     TokenKind::Minus => {
                         let ck = self.check_number_operand(op.clone(), self | &right);
-                        ck.map(|_| Value::Literal(Literal::Float(-self.collapse(&right))))
+                        ck.map(|_| Value::Literal(Literal::Number(-self.collapse(&right))))
                     }
                     TokenKind::Bang => Ok(Value::Literal(Literal::Boolean(!self.collapse(&right)))),
                     _ => unreachable!(),
@@ -163,7 +164,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                     TokenKind::Minus => {
                         self.check_number_operands(op.clone(), self | &left, self | &right).map(|_|
                             Value::Literal(
-                                Literal::Float(self.collapse(&left) - self.collapse(&right))
+                                Literal::Number(self.collapse(&left) - self.collapse(&right))
                             )
                         )
                     }
@@ -175,7 +176,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                         );
                         ck.map(|_|
                             Value::Literal(
-                                Literal::Float(self.collapse(&left) / self.collapse(&right))
+                                Literal::Number(self.collapse(&left) / self.collapse(&right))
                             )
                         )
                     }
@@ -187,7 +188,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                         );
                         ck.map(|_|
                             Value::Literal(
-                                Literal::Float(self.collapse(&left) * self.collapse(&right))
+                                Literal::Number(self.collapse(&left) * self.collapse(&right))
                             )
                         )
                     }
@@ -197,10 +198,10 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                     {
                         Ok(Value::Literal(Literal::String(x + &y)))
                     } else if
-                        let Literal::Float(x) = self | &left &&
-                        let Literal::Float(y) = self | &right
+                        let Literal::Number(x) = self | &left &&
+                        let Literal::Number(y) = self | &right
                     {
-                        Ok(Value::Literal(Literal::Float(x + y)))
+                        Ok(Value::Literal(Literal::Number(x + y)))
                     } else {
                         Err(
                             RuntimeError::new(
@@ -256,14 +257,10 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
 
     fn visit_assign_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {
         if let Expr::Assign(name, expr) = expr {
-            println!("assigning {name} to {expr:?}");
             let value = self.eval(&**expr);
             if let Ok(v) = value.clone() {
-                self.env
-                    .borrow_mut()
-                    .assign(name.clone(), self.collapse(&v));
+                self.env.borrow_mut().assign(name.clone(), self.collapse(&v));
             }
-
 
             value
         } else {
@@ -350,7 +347,7 @@ impl StmtVisitor<()> for Interpreter {
         if let Stmt::Block(statements) = stmt {
             self.exec_block(
                 statements.to_vec(),
-                Env::with_parent(Box::new(self.env.clone().borrow_mut().to_owned())),
+                Env::with_parent(Box::new(self.env.clone().borrow_mut().to_owned()))
             );
         }
     }
@@ -368,16 +365,17 @@ impl StmtVisitor<()> for Interpreter {
             let ev = self.eval(cond);
             match ev {
                 Ok(e) => {
-                    if !!(self.collapse(&e)) {
+                    if !!self.collapse(&e) {
                         self.exec(then);
                     } else if let Some(se) = el {
                         self.exec(se)
                     }
-                },
-                Err(e) => panic!("bad! {e}")
-                
+                }
+                Err(e) => panic!("bad! {e}"),
             }
-        } else { unreachable!(); }
+        } else {
+            unreachable!();
+        }
     }
 
     fn visit_return_stmt(&self, stmt: &Stmt) -> () {
@@ -396,14 +394,17 @@ impl StmtVisitor<()> for Interpreter {
 
     fn visit_while_stmt(&mut self, stmt: &mut Stmt) -> () {
         if let Stmt::While(cond, body) = stmt {
-            let mut out = self.eval(cond);
-
-            if let Ok(o) = out {
-                while !!(self.collapse(&o)) {
-                    self.exec(&mut *body);
-                    out = self.eval(cond);
-                }
+            while let Ok(o) = self.eval(cond) && !!self.collapse(&o) {
+                self.exec(&mut *body);
             }
+
+            // let mut out = self.eval(cond);
+
+            // if let Ok(o) = out {
+            //     while !!(self.collapse(&o)) {
+            //         self.exec(&mut *body);
+            //     }
+            // }
         }
     }
 }

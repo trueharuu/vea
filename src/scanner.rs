@@ -1,10 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
-    literal::Literal,
-    lox::Lox,
-    token::{Token, TokenKind},
-};
+use crate::{ literal::Literal, everest::Everest, token::{ Token, TokenKind } };
 
 pub struct Scanner {
     source: String,
@@ -12,11 +8,11 @@ pub struct Scanner {
     start: usize,
     current: usize,
     line: usize,
-    lox: Lox,
+    lox: Everest,
 }
 
 impl Scanner {
-    pub fn new(source: String, lox: Lox) -> Self {
+    pub fn new(source: String, lox: Everest) -> Self {
         Self {
             source,
             tokens: vec![],
@@ -34,12 +30,7 @@ impl Scanner {
             self.scan_token();
         }
 
-        self.tokens.push(Token::new(
-            TokenKind::Eof,
-            "".to_string(),
-            Literal::None,
-            self.line,
-        ));
+        self.tokens.push(Token::new(TokenKind::Eof, "".to_string(), Literal::None, self.line));
 
         &self.tokens
     }
@@ -112,9 +103,7 @@ impl Scanner {
 
             c if c.is_alphabetic() => self.identifier(),
 
-            c => self
-                .lox
-                .error(self.line, format!("Unexpected character '{c}'")),
+            c => self.lox.error(self.line, format!("Unexpected character '{c}'")),
         }
     }
 
@@ -131,8 +120,7 @@ impl Scanner {
     fn add_token(&mut self, kind: TokenKind, literal: Literal) {
         let text = &self.source[self.start..self.current];
 
-        self.tokens
-            .push(Token::new(kind, text.to_string(), literal, self.line))
+        self.tokens.push(Token::new(kind, text.to_string(), literal, self.line))
     }
 
     fn put_token(&mut self, kind: TokenKind) {
@@ -184,9 +172,7 @@ impl Scanner {
             self.advance();
         }
 
-        let mut float = false;
         if self.peek() == '.' && self.peek_next().is_ascii_digit() {
-            float = true;
             self.advance();
 
             while self.peek().is_ascii_digit() {
@@ -194,14 +180,16 @@ impl Scanner {
             }
         }
 
-        self.add_token(
-            if float { TokenKind::Float } else { TokenKind::Integer },
-            Literal::Float(self.source[self.start..self.current].parse().unwrap()),
-        )
+        let mov = &self.source[self.start..self.current];
+
+        self.add_token(TokenKind::Number, Literal::Number(mov.parse().unwrap()))
     }
 
     pub fn peek_next(&mut self) -> char {
-        self.source.chars().nth(self.current + 1).unwrap_or('\0')
+        self.source
+            .chars()
+            .nth(self.current + 1)
+            .unwrap_or('\0')
     }
 
     pub fn identifier(&mut self) {
@@ -236,6 +224,8 @@ impl Scanner {
         hash.insert("var", TokenKind::Var);
         hash.insert("while", TokenKind::While);
 
-        hash.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
+        hash.into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect()
     }
 }

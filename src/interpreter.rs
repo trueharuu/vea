@@ -1,12 +1,15 @@
-use std::{ cell::RefCell, error::Error, fmt::Display, ops::BitOr, rc::Rc };
+use std::{cell::RefCell, error::Error, fmt::Display, ops::BitOr, rc::Rc};
 
 use crate::{
-    ast::{ expr::{ Expr, ExprVisitor }, statement::{ Stmt, StmtVisitor } },
-    env::Env,
-    literal::Literal,
-    everest::Everest,
-    token::{ Token, TokenKind },
+    ast::{
+        expr::{Expr, ExprVisitor},
+        statement::{Stmt, StmtVisitor},
+    },
     callable::Callable,
+    env::Env,
+    everest::Everest,
+    literal::Literal,
+    token::{Token, TokenKind},
 };
 
 #[derive(Clone)]
@@ -47,12 +50,10 @@ impl Interpreter {
 
     fn check_number_operand(&self, operator: Token, operand: Literal) -> Result<(), RuntimeError> {
         if !matches!(operand, Literal::Number(_)) {
-            Err(
-                RuntimeError::new(
-                    operator.clone(),
-                    format!("operand of `{}x` must be of type number", operator.clone())
-                )
-            )
+            Err(RuntimeError::new(
+                operator.clone(),
+                format!("operand of `{}x` must be of type number", operator.clone()),
+            ))
         } else {
             Ok(())
         }
@@ -62,15 +63,13 @@ impl Interpreter {
         &self,
         operator: Token,
         left: Literal,
-        right: Literal
+        right: Literal,
     ) -> Result<(), RuntimeError> {
         if !matches!(left, Literal::Number(_)) || !matches!(right, Literal::Number(_)) {
-            Err(
-                RuntimeError::new(
-                    operator.clone(),
-                    format!("operands of `x {} y` must be numbers", operator.clone())
-                )
-            )
+            Err(RuntimeError::new(
+                operator.clone(),
+                format!("operands of `x {} y` must be numbers", operator.clone()),
+            ))
         } else {
             Ok(())
         }
@@ -264,7 +263,9 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
         if let Expr::Assign(name, expr) = expr {
             let value = self.eval(&**expr);
             if let Ok(v) = value.clone() {
-                self.env.borrow_mut().assign(name.clone(), self.collapse(&v));
+                self.env
+                    .borrow_mut()
+                    .assign(name.clone(), self.collapse(&v));
             }
 
             value
@@ -274,6 +275,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
     }
 
     fn visit_call_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {
+
         if let Expr::Call(callee, t, argv) = expr {
             let parent = self.eval(&*callee);
 
@@ -292,18 +294,17 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 args.push(ev.unwrap());
             }
 
+            println!("calling fn");
+
             return self
                 .eval(expr)
                 .map(|ok| self.collapse(&ok))
-                .map(|ok|
+                .map(|ok| {
                     ok.call(
                         &mut self.clone(),
-                        args
-                            .iter()
-                            .map(|x| self.collapse(x))
-                            .collect()
+                        args.iter().map(|x| self.collapse(x)).collect(),
                     )
-                )
+                })
                 .flatten()
                 .map(|ok| Value::Literal(ok));
         } else {
@@ -388,7 +389,7 @@ impl StmtVisitor<()> for Interpreter {
         if let Stmt::Block(statements) = stmt {
             self.exec_block(
                 statements.to_vec(),
-                Env::with_parent(Box::new(self.env.clone().borrow_mut().to_owned()))
+                Env::with_parent(Box::new(self.env.clone().borrow_mut().to_owned())),
             );
         }
     }
@@ -398,8 +399,11 @@ impl StmtVisitor<()> for Interpreter {
     }
 
     fn visit_fn_stmt(&self, stmt: &Stmt) -> () {
+        println!("making new fn");
         if let Stmt::Fn(name, params, body) = stmt {
-            self.env.borrow_mut().define(name.lexeme.clone(), Literal::Fn(Box::new(stmt.clone())))
+            self.env
+                .borrow_mut()
+                .define(name.lexeme.clone(), Literal::Fn(Box::new(stmt.clone())))
         }
     }
 

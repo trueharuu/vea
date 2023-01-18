@@ -1,10 +1,10 @@
-use std::{ error::Error, fmt::Display };
+use std::{error::Error, fmt::Display};
 
 use crate::{
-    ast::{ expr::Expr, statement::Stmt },
-    literal::Literal,
+    ast::{expr::Expr, statement::Stmt},
     everest::Everest,
-    token::{ Token, TokenKind },
+    literal::Literal,
+    token::{Token, TokenKind},
 };
 
 #[derive(Clone)]
@@ -51,7 +51,11 @@ impl Parser {
             return self.function("fn".to_string());
         }
 
-        let r = if self.is([TokenKind::Var]) { self.var_declaration() } else { self.statement() };
+        let r = if self.is([TokenKind::Var]) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        };
 
         if let Ok(n) = r {
             Some(n)
@@ -62,47 +66,63 @@ impl Parser {
     }
 
     fn function(&mut self, kind: String) -> Option<Stmt> {
-        let name = self.consume(TokenKind::Identifier, format!("expected {kind} name")).ok();
+        let name = self
+            .consume(TokenKind::Identifier, format!("expected {kind} name"))
+            .ok();
 
         if name.is_none() {
             return None;
         }
 
-        let l = self.consume(TokenKind::LeftParen, format!("expected '(' after {kind} name")).ok();
+        let l = self
+            .consume(
+                TokenKind::LeftParen,
+                format!("expected '(' after {kind} name"),
+            )
+            .ok();
 
         if l.is_none() {
             return None;
         }
 
-        dbg!(l);
+        let mut p = Vec::new();
 
-        // List<Token> parameters = new ArrayList<>();
-        let mut params = Vec::new();
-
-        // if (!check(RIGHT_PAREN)) {
-        if !self.check(TokenKind::RightParen) {
-            let mut first = true;
-            while first || self.is([TokenKind::Comma]) {
-                let pk = self.peek();
-                // if (parameters.size() >= 255) {
-                if params.len() >= 255 {
-                    self.error(pk, "cannot have >255 parameters".to_string());
-                    return None;
-                }
-
-                let id = self.consume(TokenKind::Identifier, "expected parameter name".to_string());
-                if id.is_err() {
-                    return None;
-                }
-
-                params.push(id.unwrap());
-
-                
+        let j = self.peek();
+        while j.clone().kind == TokenKind::Comma || j.clone().kind == TokenKind::Identifier {
+            if j.clone().kind == TokenKind::Comma && p.last().is_some_and(|x: &Token| x.kind == TokenKind::Comma) {
+                self.error(j.clone(), "missing parameter name".to_string());
+                return None;
             }
+
+            p.push(j.clone());
+            self.next();
         }
 
+        if p.first().is_some_and(|x| x.kind == TokenKind::Comma) {
+            self.error(
+                p.first().unwrap().clone(),
+                "malformed parameters".to_string(),
+            );
+            return None;
+        } else if p.last().is_some_and(|x| x.kind == TokenKind::Comma) {
+            self.error(
+                p.last().unwrap().clone(),
+                "malformed parameters".to_string(),
+            );
+            return None;
+        }
+
+        let params = p
+            .iter()
+            .filter(|x| x.kind == TokenKind::Identifier)
+            .cloned()
+            .collect::<Vec<_>>();
+
         let r = self
-            .consume(TokenKind::RightParen, "expected ')' after fn params".to_string())
+            .consume(
+                TokenKind::RightParen,
+                "expected ')' after fn params".to_string(),
+            )
             .ok();
 
         if r.is_none() {
@@ -110,7 +130,10 @@ impl Parser {
         }
 
         let k = self
-            .consume(TokenKind::LeftBrace, format!("expected '{{' before {kind} body"))
+            .consume(
+                TokenKind::LeftBrace,
+                format!("expected '{{' before {kind} body"),
+            )
             .ok();
 
         if k.is_none() {
@@ -119,7 +142,7 @@ impl Parser {
 
         let body = self.block();
 
-        return Some(Stmt::Fn(name.unwrap(), params, body));
+        return Some(Stmt::Fn(name.unwrap(), Vec::new(), body));
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, ParseError> {
@@ -134,11 +157,17 @@ impl Parser {
                 }
             }
 
-            self.consume(TokenKind::Semicolon, "expect ';' after variable declaration".to_string());
+            self.consume(
+                TokenKind::Semicolon,
+                "expect ';' after variable declaration".to_string(),
+            );
             // if initializer.is_none() {
             // return Err(self.error(name.clone(), format!("missing initializer for {}", name)));
             // } else {
-            return Ok(Stmt::Var(name.clone(), initializer.unwrap_or(Expr::Literal(Literal::None))));
+            return Ok(Stmt::Var(
+                name.clone(),
+                initializer.unwrap_or(Expr::Literal(Literal::None)),
+            ));
             // }
         } else {
             Err(n.unwrap_err())
@@ -208,7 +237,7 @@ impl Parser {
 
         let sc = self.consume(
             TokenKind::Semicolon,
-            "expected ';' after loop condition".to_string()
+            "expected ';' after loop condition".to_string(),
         );
         if sc.is_err() {
             return Err(sc.unwrap_err());
@@ -224,7 +253,10 @@ impl Parser {
             incr = Some(e.unwrap());
         }
 
-        let r = self.consume(TokenKind::RightParen, "expected ')' after for clause".to_string());
+        let r = self.consume(
+            TokenKind::RightParen,
+            "expected ')' after for clause".to_string(),
+        );
 
         if r.is_err() {
             return Err(r.unwrap_err());
@@ -261,7 +293,10 @@ impl Parser {
             return Err(condition.unwrap_err());
         }
 
-        let r = self.consume(TokenKind::RightParen, "expected ')' to close while".to_string());
+        let r = self.consume(
+            TokenKind::RightParen,
+            "expected ')' to close while".to_string(),
+        );
 
         if r.is_err() {
             return Err(r.unwrap_err());
@@ -289,7 +324,10 @@ impl Parser {
             return Err(condition.unwrap_err());
         }
 
-        let r = self.consume(TokenKind::RightParen, "expected ')' to close if".to_string());
+        let r = self.consume(
+            TokenKind::RightParen,
+            "expected ')' to close if".to_string(),
+        );
 
         if r.is_err() {
             return Err(r.unwrap_err());
@@ -321,7 +359,10 @@ impl Parser {
             statements.push(self.declaration().unwrap());
         }
 
-        self.consume(TokenKind::RightBrace, "expected '}' after block".to_string());
+        self.consume(
+            TokenKind::RightBrace,
+            "expected '}' after block".to_string(),
+        );
 
         return statements;
     }
@@ -381,7 +422,11 @@ impl Parser {
             if right.is_err() {
                 return right;
             }
-            expr = Ok(Expr::Logical(Box::new(expr.unwrap()), op, Box::new(right.unwrap())));
+            expr = Ok(Expr::Logical(
+                Box::new(expr.unwrap()),
+                op,
+                Box::new(right.unwrap()),
+            ));
         }
 
         expr
@@ -401,7 +446,11 @@ impl Parser {
                 return Err(right.unwrap_err());
             }
 
-            expr = Ok(Expr::Logical(Box::new(expr.unwrap()), op, Box::new(right.unwrap())));
+            expr = Ok(Expr::Logical(
+                Box::new(expr.unwrap()),
+                op,
+                Box::new(right.unwrap()),
+            ));
         }
 
         expr
@@ -527,7 +576,7 @@ impl Parser {
 
         let paren = self.consume(
             TokenKind::RightParen,
-            "expected ')' after fn arguments".to_string()
+            "expected ')' after fn arguments".to_string(),
         );
 
         if paren.is_err() {
@@ -581,7 +630,7 @@ impl Parser {
             }
 
             match self.peek().kind {
-                | TokenKind::Class
+                TokenKind::Class
                 | TokenKind::Fn
                 | TokenKind::Var
                 | TokenKind::For

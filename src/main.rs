@@ -15,10 +15,10 @@ pub mod env;
 mod callable;
 fn main() {
     let r =
-        r#"fn sayHi(first, last) {
-            print "Hi, " + first + " " + last + "!";
-          }
-          
-          sayHi("Dear", "Reader");"#;
+        r#"fn f(x) {
+              print x;
+           }
+           
+           f(1)"#;
     Everest::new().run(r.to_string())
 }

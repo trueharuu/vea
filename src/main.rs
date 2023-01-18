@@ -12,7 +12,6 @@ pub mod parser;
 pub mod scanner;
 pub mod token;
 pub mod env;
-mod callable;
 fn main() {
     let r =
         r#"var a = 0;

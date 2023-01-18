@@ -28,6 +28,8 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     // name
     Variable(Token),
+    // expr
+    // Callable(Box<Expr>)
 }
 
 impl Expr {
@@ -45,6 +47,7 @@ impl Expr {
             Expr::This(_) => visitor.visit_this_expr(self),
             Expr::Unary(_, _) => visitor.visit_unary_expr(self),
             Expr::Variable(_) => visitor.visit_variable_expr(self),
+            _ => unreachable!()
         }
     }
 }

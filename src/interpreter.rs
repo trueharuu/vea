@@ -12,13 +12,17 @@ use crate::{
 pub struct Interpreter {
     pub lox: Box<Everest>,
     pub env: Rc<RefCell<Env>>,
+    pub globals: Rc<RefCell<Env>>,
 }
 
 impl Interpreter {
     pub fn new(lox: Box<Everest>) -> Self {
+        let globals = Rc::new(RefCell::new(Env::new()));
+
         Self {
             lox,
             env: Rc::new(RefCell::new(Env::new())),
+            globals,
         }
     }
 
@@ -269,7 +273,40 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
     }
 
     fn visit_call_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {
-        todo!()
+        // if let Expr::Call(callee, t, argv) = expr {
+        //     let parent = self.eval(&*callee);
+
+        //     if parent.is_err() {
+        //         return parent;
+        //     }
+
+        //     let mut args = Vec::new();
+
+        //     for arg in argv {
+        //         let ev = self.eval(&*arg);
+        //         if ev.is_err() {
+        //             return ev;
+        //         }
+
+        //         args.push(ev.unwrap());
+        //     }
+
+        //     if let Expr::Callable(_) = **callee {
+        //         let f = Callable(callee.clone(), argv.len() as u8);
+
+        //         if (args.len() as u8) != f.arity() {
+        //             return Err(RuntimeError(t.clone(), format!("expected {} args but got {}", f.arity(), args.len())))
+        //         }
+
+        //         return f.call(self, args)
+        //     } else {
+        //         return Err(RuntimeError(t.clone(), "can only call fns".to_string()))
+        //     }
+        // } else {
+        //     unreachable!();
+        // }
+
+        todo!();
     }
 
     fn visit_get_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {

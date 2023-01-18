@@ -15,6 +15,7 @@ impl Literal {
             Literal::None => "None".to_string(),
             Literal::Number(d) => d.to_string(),
             Literal::String(s) => s.clone(),
+            _ => todo!(),
         }
     }
 
@@ -26,6 +27,7 @@ impl Literal {
             Literal::None => f64::NAN,
             Literal::Number(d) => *d,
             Literal::String(s) => s.parse::<f64>().unwrap_or(f64::NAN),
+            _ => todo!(),
         }
     }
 
@@ -35,6 +37,7 @@ impl Literal {
             Literal::None => false,
             Literal::Number(d) => !d.is_nan(),
             Literal::String(s) => true,
+            _ => todo!(),
         }
     }
 }

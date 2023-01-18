@@ -47,6 +47,10 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Option<Stmt> {
+        if self.is([TokenKind::Fn]) {
+            return self.function("fn".to_string());
+        }
+
         let r = if self.is([TokenKind::Var]) { self.var_declaration() } else { self.statement() };
 
         if let Ok(n) = r {
@@ -55,6 +59,67 @@ impl Parser {
             self.sync();
             None
         }
+    }
+
+    fn function(&mut self, kind: String) -> Option<Stmt> {
+        let name = self.consume(TokenKind::Identifier, format!("expected {kind} name")).ok();
+
+        if name.is_none() {
+            return None;
+        }
+
+        let l = self.consume(TokenKind::LeftParen, format!("expected '(' after {kind} name")).ok();
+
+        if l.is_none() {
+            return None;
+        }
+
+        dbg!(l);
+
+        // List<Token> parameters = new ArrayList<>();
+        let mut params = Vec::new();
+
+        // if (!check(RIGHT_PAREN)) {
+        if !self.check(TokenKind::RightParen) {
+            let mut first = true;
+            while first || self.is([TokenKind::Comma]) {
+                let pk = self.peek();
+                // if (parameters.size() >= 255) {
+                if params.len() >= 255 {
+                    self.error(pk, "cannot have >255 parameters".to_string());
+                    return None;
+                }
+
+                let id = self.consume(TokenKind::Identifier, "expected parameter name".to_string());
+                if id.is_err() {
+                    return None;
+                }
+
+                params.push(id.unwrap());
+
+                
+            }
+        }
+
+        let r = self
+            .consume(TokenKind::RightParen, "expected ')' after fn params".to_string())
+            .ok();
+
+        if r.is_none() {
+            return None;
+        }
+
+        let k = self
+            .consume(TokenKind::LeftBrace, format!("expected '{{' before {kind} body"))
+            .ok();
+
+        if k.is_none() {
+            return None;
+        }
+
+        let body = self.block();
+
+        return Some(Stmt::Fn(name.unwrap(), params, body));
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, ParseError> {
@@ -460,13 +525,16 @@ impl Parser {
             }
         }
 
-        let paren = self.consume(TokenKind::RightParen, "expected ')' after fn arguments".to_string());
+        let paren = self.consume(
+            TokenKind::RightParen,
+            "expected ')' after fn arguments".to_string()
+        );
 
         if paren.is_err() {
             return Err(paren.unwrap_err());
         }
 
-        return Ok(Expr::Call(Box::new(callee.clone()), paren.unwrap(), args))
+        return Ok(Expr::Call(Box::new(callee.clone()), paren.unwrap(), args));
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
@@ -558,6 +626,7 @@ impl Parser {
         if self.is_at_end() {
             return false;
         }
+
         return self.peek().kind == kind;
     }
 

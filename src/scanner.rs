@@ -212,7 +212,7 @@ impl Scanner {
         hash.insert("else", TokenKind::Else);
         hash.insert("false", TokenKind::False);
         hash.insert("for", TokenKind::For);
-        hash.insert("fun", TokenKind::Fn);
+        hash.insert("fn", TokenKind::Fn);
         hash.insert("if", TokenKind::If);
         hash.insert("nil", TokenKind::None);
         hash.insert("or", TokenKind::Or);

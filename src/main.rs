@@ -1,5 +1,5 @@
 #![allow(unused)]
-#![feature(is_some_and, let_chains, option_result_contains)]
+#![feature(is_some_and, let_chains, option_result_contains, result_flattening)]
 
 use everest::Everest;
 
@@ -12,15 +12,13 @@ pub mod parser;
 pub mod scanner;
 pub mod token;
 pub mod env;
+mod callable;
 fn main() {
     let r =
-        r#"var a = 0;
-        var temp;
-        
-        for (var b = 1; a < 10000; b = temp + b) {
-          print a;
-          temp = a;
-          a = b;
-        }"#;
+        r#"fn sayHi(first, last) {
+            print "Hi, " + first + " " + last + "!";
+          }
+          
+          sayHi("Dear", "Reader");"#;
     Everest::new().run(r.to_string())
 }

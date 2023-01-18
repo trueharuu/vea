@@ -6,6 +6,7 @@ use crate::{
     literal::Literal,
     everest::Everest,
     token::{ Token, TokenKind },
+    callable::Callable,
 };
 
 #[derive(Clone)]
@@ -89,7 +90,7 @@ impl Interpreter {
         obj.to_string()
     }
 
-    fn exec_block(&mut self, statements: Vec<Stmt>, env: Env) -> () {
+    pub fn exec_block(&mut self, statements: Vec<Stmt>, env: Env) -> () {
         let prev = self.env.clone();
         self.env = Rc::new(RefCell::new(env));
 
@@ -273,38 +274,41 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
     }
 
     fn visit_call_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {
-        // if let Expr::Call(callee, t, argv) = expr {
-        //     let parent = self.eval(&*callee);
+        if let Expr::Call(callee, t, argv) = expr {
+            let parent = self.eval(&*callee);
 
-        //     if parent.is_err() {
-        //         return parent;
-        //     }
+            if parent.is_err() {
+                return parent;
+            }
 
-        //     let mut args = Vec::new();
+            let mut args = Vec::new();
 
-        //     for arg in argv {
-        //         let ev = self.eval(&*arg);
-        //         if ev.is_err() {
-        //             return ev;
-        //         }
+            for arg in argv {
+                let ev = self.eval(&*arg);
+                if ev.is_err() {
+                    return ev;
+                }
 
-        //         args.push(ev.unwrap());
-        //     }
+                args.push(ev.unwrap());
+            }
 
-        //     if let Expr::Callable(_) = **callee {
-        //         let f = Callable(callee.clone(), argv.len() as u8);
-
-        //         if (args.len() as u8) != f.arity() {
-        //             return Err(RuntimeError(t.clone(), format!("expected {} args but got {}", f.arity(), args.len())))
-        //         }
-
-        //         return f.call(self, args)
-        //     } else {
-        //         return Err(RuntimeError(t.clone(), "can only call fns".to_string()))
-        //     }
-        // } else {
-        //     unreachable!();
-        // }
+            return self
+                .eval(expr)
+                .map(|ok| self.collapse(&ok))
+                .map(|ok|
+                    ok.call(
+                        &mut self.clone(),
+                        args
+                            .iter()
+                            .map(|x| self.collapse(x))
+                            .collect()
+                    )
+                )
+                .flatten()
+                .map(|ok| Value::Literal(ok));
+        } else {
+            unreachable!();
+        }
 
         todo!();
     }
@@ -394,7 +398,9 @@ impl StmtVisitor<()> for Interpreter {
     }
 
     fn visit_fn_stmt(&self, stmt: &Stmt) -> () {
-        todo!()
+        if let Stmt::Fn(name, params, body) = stmt {
+            self.env.borrow_mut().define(name.lexeme.clone(), Literal::Fn(Box::new(stmt.clone())))
+        }
     }
 
     fn visit_if_stmt(&mut self, stmt: &mut Stmt) -> () {

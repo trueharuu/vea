@@ -47,9 +47,9 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Option<Stmt> {
-        if self.is([TokenKind::Fn]) {
-            return self.function("fn".to_string());
-        }
+        // if self.is([TokenKind::Fn]) {
+        //     return self.function("fn".to_string());
+        // }
 
         let r = if self.is([TokenKind::Var]) {
             self.var_declaration()
@@ -66,83 +66,51 @@ impl Parser {
     }
 
     fn function(&mut self, kind: String) -> Option<Stmt> {
-        let name = self
-            .consume(TokenKind::Identifier, format!("expected {kind} name"))
-            .ok();
+        // let name = self
+        //     .consume(TokenKind::Identifier, format!("expected {kind} name"))
+        //     .ok();
 
-        if name.is_none() {
-            return None;
-        }
+        // if name.is_none() {
+        //     return None;
+        // }
 
-        let l = self
-            .consume(
-                TokenKind::LeftParen,
-                format!("expected '(' after {kind} name"),
-            )
-            .ok();
+        // let l = self
+        //     .consume(
+        //         TokenKind::LeftParen,
+        //         format!("expected '(' after {kind} name"),
+        //     )
+        //     .ok();
 
-        if l.is_none() {
-            return None;
-        }
+        // if l.is_none() {
+        //     return None;
+        // }
 
-        let mut p = Vec::new();
+        // let r = self
+        //     .consume(
+        //         TokenKind::RightParen,
+        //         "expected ')' after fn params".to_string(),
+        //     )
+        //     .ok();
 
-        let j = self.peek();
-        while j.clone().kind == TokenKind::Comma || j.clone().kind == TokenKind::Identifier {
-            if j.clone().kind == TokenKind::Comma && p.last().is_some_and(|x: &Token| x.kind == TokenKind::Comma) {
-                self.error(j.clone(), "missing parameter name".to_string());
-                return None;
-            }
+        // if r.is_none() {
+        //     return None;
+        // }
 
-            p.push(j.clone());
-            self.next();
-        }
+        // let k = self
+        //     .consume(
+        //         TokenKind::LeftBrace,
+        //         format!("expected '{{' before {kind} body"),
+        //     )
+        //     .ok();
 
-        if p.first().is_some_and(|x| x.kind == TokenKind::Comma) {
-            self.error(
-                p.first().unwrap().clone(),
-                "malformed parameters".to_string(),
-            );
-            return None;
-        } else if p.last().is_some_and(|x| x.kind == TokenKind::Comma) {
-            self.error(
-                p.last().unwrap().clone(),
-                "malformed parameters".to_string(),
-            );
-            return None;
-        }
+        // if k.is_none() {
+        //     return None;
+        // }
 
-        let params = p
-            .iter()
-            .filter(|x| x.kind == TokenKind::Identifier)
-            .cloned()
-            .collect::<Vec<_>>();
+        // let body = self.block();
 
-        let r = self
-            .consume(
-                TokenKind::RightParen,
-                "expected ')' after fn params".to_string(),
-            )
-            .ok();
-
-        if r.is_none() {
-            return None;
-        }
-
-        let k = self
-            .consume(
-                TokenKind::LeftBrace,
-                format!("expected '{{' before {kind} body"),
-            )
-            .ok();
-
-        if k.is_none() {
-            return None;
-        }
-
-        let body = self.block();
-
-        return Some(Stmt::Fn(name.unwrap(), Vec::new(), body));
+        // return Some(Stmt::Fn(name.unwrap(), Vec::new(), body));
+        todo!();
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, ParseError> {

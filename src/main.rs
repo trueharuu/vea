@@ -15,10 +15,10 @@ pub mod env;
 mod callable;
 fn main() {
     let r =
-        r#"fn f(x) {
-              print x;
+        r#"fn f() {
+              print 1;
            }
            
-           f(1)"#;
+           f();"#;
     Everest::new().run(r.to_string())
 }

@@ -275,42 +275,6 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
     }
 
     fn visit_call_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {
-
-        if let Expr::Call(callee, t, argv) = expr {
-            let parent = self.eval(&*callee);
-
-            if parent.is_err() {
-                return parent;
-            }
-
-            let mut args = Vec::new();
-
-            for arg in argv {
-                let ev = self.eval(&*arg);
-                if ev.is_err() {
-                    return ev;
-                }
-
-                args.push(ev.unwrap());
-            }
-
-            println!("calling fn");
-
-            return self
-                .eval(expr)
-                .map(|ok| self.collapse(&ok))
-                .map(|ok| {
-                    ok.call(
-                        &mut self.clone(),
-                        args.iter().map(|x| self.collapse(x)).collect(),
-                    )
-                })
-                .flatten()
-                .map(|ok| Value::Literal(ok));
-        } else {
-            unreachable!();
-        }
-
         todo!();
     }
 

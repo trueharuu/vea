@@ -1,6 +1,6 @@
 import type { TokenKind } from './token_kind';
 
-export type Literal = boolean | number | string | null;
+export type Literal = boolean | number | object | string | null;
 
 export class Token {
   public readonly kind: TokenKind;

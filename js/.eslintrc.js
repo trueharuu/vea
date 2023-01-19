@@ -16,7 +16,7 @@ module.exports = {
   overrides: [{ files: ["./.eslintrc.js"], parserOptions: { project: null } }],
   rules: {
     indent: ["warn", 2],
-    "linebreak-style": ["warn", "windows"],
+    "linebreak-style": ["off"],
     quotes: ["warn", "single"],
     semi: ["error", "always"],
     curly: ['error', 'all'],

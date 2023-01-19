@@ -1,11 +1,11 @@
-import { HashMap, match, Some, Vec } from '@rqft/rust';
+import { match } from '@rqft/rust';
 import { Everest } from './everest';
 import type { Literal } from './token';
 import { Token } from './token';
 import { TokenKind } from './token_kind';
 export class Scanner {
   private readonly source: string;
-  private readonly tokens: Vec<Token> = Vec.new();
+  private readonly tokens: Array<Token> = [];
   private start = 0;
   private current = 0;
   private line = 1;
@@ -14,7 +14,7 @@ export class Scanner {
     this.source = source;
   }
 
-  public scan_tokens(): Vec<Token> {
+  public scan_tokens(): Array<Token> {
     while (!this.is_at_end()) {
       this.start = this.current;
       this.scan_token();
@@ -84,34 +84,30 @@ export class Scanner {
     }
 
     const text = this.source.substring(this.start, this.current);
-    let type = this.keywords().get(text);
+    const type = this.keywords().get(text) || TokenKind.Identifier;
 
-    if (type.is_none()) {
-      type = Some(TokenKind.Identifier);
-    }
-
-    this.add_token(type.unwrap());
+    this.add_token(type);
   }
 
-  private keywords(): HashMap<string, TokenKind> {
-    const map = HashMap.new<string, TokenKind>();
+  private keywords(): Map<string, TokenKind> {
+    const map = new Map<string, TokenKind>();
 
-    map.insert('and', TokenKind.And);
-    map.insert('class', TokenKind.Class);
-    map.insert('else', TokenKind.Else);
-    map.insert('false', TokenKind.False);
-    map.insert('for', TokenKind.For);
-    map.insert('fn', TokenKind.Fn);
-    map.insert('if', TokenKind.If);
-    map.insert('none', TokenKind.None);
-    map.insert('or', TokenKind.Or);
-    map.insert('print', TokenKind.Print);
-    map.insert('return', TokenKind.Return);
-    map.insert('super', TokenKind.Super);
-    map.insert('this', TokenKind.This);
-    map.insert('true', TokenKind.True);
-    map.insert('var', TokenKind.Var);
-    map.insert('while', TokenKind.While);
+    map.set('and', TokenKind.And);
+    map.set('class', TokenKind.Class);
+    map.set('else', TokenKind.Else);
+    map.set('false', TokenKind.False);
+    map.set('for', TokenKind.For);
+    map.set('fn', TokenKind.Fn);
+    map.set('if', TokenKind.If);
+    map.set('none', TokenKind.None);
+    map.set('or', TokenKind.Or);
+    map.set('print', TokenKind.Print);
+    map.set('return', TokenKind.Return);
+    map.set('super', TokenKind.Super);
+    map.set('this', TokenKind.This);
+    map.set('true', TokenKind.True);
+    map.set('var', TokenKind.Var);
+    map.set('while', TokenKind.While);
 
     return map;
   }
@@ -156,7 +152,7 @@ export class Scanner {
   }
 
   private string(): void {
-    while (this.peek() !== '"' && this.is_at_end()) {
+    while (this.peek() !== '"' && !this.is_at_end()) {
       if (this.peek() === '\n') {
         this.line++;
       }

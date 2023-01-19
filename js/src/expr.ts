@@ -1,4 +1,4 @@
-import type { Vec } from '@rqft/rust';
+
 import type { Literal as RawLiteral, Token } from './token';
 
 export abstract class Expr {
@@ -49,7 +49,7 @@ export namespace Expr {
     constructor(
       public readonly callee: Expr,
       public readonly paren: Token,
-      public readonly argv: Vec<Token>
+      public readonly argv: Array<Expr>
     ) {
       super();
     }

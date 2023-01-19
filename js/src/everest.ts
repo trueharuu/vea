@@ -1,9 +1,18 @@
-import { println } from '@rqft/rust';
+import { eprintln, println } from '@rqft/rust';
 import fs from 'node:fs';
 import repl from 'node:repl';
+import { Parser } from './parser';
+import { Interpreter } from './interpreter';
+import type { RuntimeError } from './runtime_error';
 import { Scanner } from './scanner';
+import type { Token } from './token';
+import { TokenKind } from './token_kind';
+import type { Stmt } from './stmt';
+import { Return } from './return';
+import { inspect } from 'node:util';
 
 export class Everest {
+  private static readonly interpreter = new Interpreter();
   public static main(args: Array<string>): void {
     if (args.length > 1) {
       println('usage: eve [script]');
@@ -20,6 +29,12 @@ export class Everest {
     if (this.had_error) {
       process.exit(0x41);
     }
+
+    if (this.had_runtime_error) {
+      process.exit(0x46);
+    }
+
+
   }
 
   private static run_prompt(): void {
@@ -31,17 +46,30 @@ export class Everest {
     });
   }
 
-  private static run(source: string): void {
+  public static run(source: string): void {
     const scanner = new Scanner(source);
     const tokens = scanner.scan_tokens();
 
-    for (const token of tokens) {
-      println(String(token));
-    }
+    const parser = new Parser(tokens);
+    const statements = parser.parse();
+
+    (inspect(statements, {depth:4}));
+
+    if (this.had_error) { return; }
+
+    this.interpreter.interpret(statements as Array<Stmt>);
   }
 
   public static error(line: number, message: string): void {
     this.report(line, '', message);
+  }
+
+  public static error_with(token: Token, message: string): void {
+    if (token.kind === TokenKind.Eof) {
+      this.report(token.line, ' at end', message);
+    } else {
+      this.report(token.line, ' at \'' + token.lexeme + '\'', message);
+    }
   }
 
   private static had_error = false;
@@ -49,5 +77,12 @@ export class Everest {
   public static report(line: number, where: string, message: string): void {
     println(`[line ${line}] error${where}: ${message}`);
     this.had_error = true;
+  }
+
+  private static had_runtime_error = false;
+  public static runtime_error(error: RuntimeError): void {
+    if (error instanceof Return) { return; }
+    eprintln(error.message + '\n[line ' + error.token.line + ']');
+    this.had_runtime_error = true;
   }
 }

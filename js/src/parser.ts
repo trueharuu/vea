@@ -1,3 +1,4 @@
+import { Everest } from './everest';
 import { Expr } from './expr';
 import { Stmt } from './stmt';
 import type { Token } from './token';
@@ -45,7 +46,7 @@ export class Parser {
     }
   }
 
-  private class_declaration() {
+  private class_declaration(): Stmt {
     const name = this.consume(TokenKind.Identifier, 'expected class name');
 
     let super_class = undefined;
@@ -134,7 +135,7 @@ export class Parser {
     return body;
   }
 
-  private if_statement() {
+  private if_statement(): Stmt {
     this.consume(TokenKind.LeftParen, 'expected \'(\' after `if`');
     const condition = this.expression();
 
@@ -193,7 +194,7 @@ export class Parser {
     return new Stmt.Expression(expr);
   }
 
-  private fn(kind: string): Stmt {
+  private fn(kind: string): Stmt.Fn {
     const name = this.consume(TokenKind.Identifier, `expected ${kind} name`);
     this.consume(TokenKind.LeftParen, `expected '(' after ${kind} name`);
 
@@ -226,7 +227,175 @@ export class Parser {
     return statements;
   }
 
-  // todo
+  private assignment(): Expr {
+    const expr = this.or();
+
+    if (this.match(TokenKind.Eq)) {
+      const eq = this.prev();
+      const value = this.assignment();
+      if (expr instanceof Expr.Variable) {
+        const name = expr.name;
+        return new Expr.Assign(name, value);
+      } else if (expr instanceof Expr.Get) {
+        return new Expr.Set(expr.target, expr.name, value);
+      }
+
+      this.error(eq, 'invalid assignment target');
+    }
+
+    return expr;
+  }
+
+  private or(): Expr {
+    let expr = this.and();
+
+    while (this.match(TokenKind.Or)) {
+      const operator = this.prev();
+      const right = this.and();
+      expr = new Expr.Logical(expr, operator, right);
+    }
+
+    return expr;
+  }
+
+  private and(): Expr {
+    let expr = this.equality();
+
+    while (this.match(TokenKind.And)) {
+      const operator = this.prev();
+      const right = this.equality();
+      expr = new Expr.Logical(expr, operator, right);
+    }
+
+    return expr;
+  }
+
+  private equality(): Expr {
+    let expr = this.comparison();
+    while (this.match(TokenKind.Ne, TokenKind.EqEq)) {
+      const operator = this.prev();
+      const right = this.comparison();
+      expr = new Expr.Binary(expr, operator, right);
+    }
+
+    return expr;
+  }
+
+  private comparison(): Expr {
+    let expr = this.term();
+    while (this.match(TokenKind.Gt, TokenKind.Ge, TokenKind.Lt, TokenKind.Le)) {
+      const operator = this.prev();
+      const right = this.term();
+      expr = new Expr.Binary(expr, operator, right);
+    }
+
+    return expr;
+  }
+
+  private term(): Expr {
+    let expr = this.factor();
+    while (this.match(TokenKind.Minus, TokenKind.Plus)) {
+      const operator = this.prev();
+      const right = this.factor();
+      expr = new Expr.Binary(expr, operator, right);
+    }
+
+    return expr;
+  }
+
+  private factor(): Expr {
+    let expr = this.unary();
+    while (this.match(TokenKind.Slash, TokenKind.Star)) {
+      const operator = this.prev();
+      const right = this.unary();
+      expr = new Expr.Binary(expr, operator, right);
+    }
+
+    return expr;
+  }
+
+  private unary(): Expr {
+    if (this.match(TokenKind.Bang, TokenKind.Minus)) {
+      const operator = this.prev();
+      const right = this.unary();
+      return new Expr.Unary(operator, right);
+    }
+
+    return this.call();
+  }
+
+  private finish_call(callee: Expr): Expr {
+    const argv = [];
+    if (!this.check(TokenKind.RightParen)) {
+      do {
+        if (argv.length >= 255) {
+          this.error(this.peek(), 'can\'t have more than 255 arguments');
+        }
+
+        argv.push(this.expression());
+      } while (this.match(TokenKind.Comma));
+    }
+
+    const paren = this.consume(
+      TokenKind.RightParen,
+      'expected \')\' after arguments'
+    );
+
+    return new Expr.Call(callee, paren, argv);
+  }
+
+  private call(): Expr {
+    let expr = this.primary();
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, no-constant-condition
+    while (true) {
+      if (this.match(TokenKind.LeftParen)) {
+        expr = this.finish_call(expr);
+      } else if (this.match(TokenKind.Dot)) {
+        const name = this.consume(
+          TokenKind.Identifier,
+          'expected property name'
+        );
+        expr = new Expr.Get(expr, name);
+      } else {
+        break;
+      }
+    }
+
+    return expr;
+  }
+
+  private primary(): Expr {
+    if (this.match(TokenKind.False)) { return new Expr.Literal(false); }
+    if (this.match(TokenKind.True)) { return new Expr.Literal(true); }
+    if (this.match(TokenKind.None)) { return new Expr.Literal(undefined); }
+    
+    if (this.match(TokenKind.Number, TokenKind.String)) {
+      return new Expr.Literal(this.prev().literal);
+    }
+
+    if (this.match(TokenKind.Super)) {
+      const keyword = this.prev();
+      this.consume(TokenKind.Dot, 'expected \'.\' after super``');
+      const method = this.consume(TokenKind.Identifier, 'expected super method name');
+      return new Expr.Super(keyword, method);
+    }
+
+    if (this.match(TokenKind.This)) {
+      return new Expr.This(this.prev());
+    }
+
+    if (this.match(TokenKind.Identifier)) {
+      return new Expr.Variable(this.prev());
+    }
+
+    if (this.match(TokenKind.LeftParen)) {
+      const expr = this.expression();
+      this.consume(TokenKind.RightParen, 'expected \')\' after expression');
+      return new Expr.Grouping(expr);
+    }
+
+    throw this.error(this.peek(), 'expected expression');
+  }
 
   private match(...kinds: Array<TokenKind>): boolean {
     for (const kind of kinds) {
@@ -269,12 +438,12 @@ export class Parser {
     return this.tokens[this.current] as Token;
   }
 
-  private prev() {
+  private prev(): Token {
     return this.tokens[this.current - 1] as Token;
   }
 
   private error(token: Token, message: string): ParseError {
-    Everest.error(token, message);
+    Everest.error_with(token, message);
     return new ParseError();
   }
 

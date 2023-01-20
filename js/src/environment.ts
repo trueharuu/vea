@@ -2,7 +2,7 @@ import { RuntimeError } from './runtime_error';
 import type { Literal, Token } from './token';
 
 export class Environment {
-  constructor(private readonly enclosing?: Environment) {}
+  constructor(readonly enclosing?: Environment) {}
   private readonly values: Map<string, Literal> = new Map();
 
   public get(name: Token): Literal {
@@ -47,5 +47,9 @@ export class Environment {
 
   public get_at(distance: number, name: string): Literal {
     return this.ancestor(distance)?.values.get(name);
+  }
+
+  public assign_at(distance: number, name: Token, value: Literal): void {
+    this.ancestor(distance)?.values.set(name.lexeme, value);
   }
 }

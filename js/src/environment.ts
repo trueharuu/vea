@@ -2,20 +2,15 @@ import { RuntimeError } from './runtime_error';
 import type { Literal, Token } from './token';
 
 export class Environment {
-  private readonly values = new Map<string, Literal>();
-  constructor(private readonly enclosing: Environment | null = null) {}
-  public define(name: string, value: Literal): void {
-    this.values.set(name, value);
-  }
+  constructor(private readonly enclosing?: Environment) {}
+  private readonly values: Map<string, Literal> = new Map();
 
   public get(name: Token): Literal {
-    const raw = this.values.get(name.lexeme);
-
-    if (raw !== undefined) {
-      return raw;
+    if (this.values.has(name.lexeme)) {
+      return this.values.get(name.lexeme);
     }
 
-    if (this.enclosing !== null) {
+    if (this.enclosing !== undefined) {
       return this.enclosing.get(name);
     }
 
@@ -23,20 +18,34 @@ export class Environment {
   }
 
   public assign(name: Token, value: Literal): void {
-    const raw = this.values.get(name.lexeme);
-    if (raw !== undefined) {
+    if (this.values.has(name.lexeme)) {
       this.values.set(name.lexeme, value);
       return;
     }
 
-    if (this.enclosing !== null) {
+    if (this.enclosing !== undefined) {
       this.enclosing.assign(name, value);
       return;
     }
 
-    throw new RuntimeError(
-      name,
-      `cannot assign to undefined variable \`${name.lexeme}\`\n\tnote:use \`var\` to create a new variable instead: \`var ${name.lexeme} = ${value}\``
-    );
+    throw new RuntimeError(name, `undefined variable \`${name.lexeme}\``);
+  }
+
+  public define(name: string, value: Literal): void {
+    this.values.set(name, value);
+  }
+
+  public ancestor(distance: number): Environment | undefined {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    let environment: Environment | undefined = this;
+    for (let i = 0; i < distance; i++) {
+      environment = environment?.enclosing;
+    }
+
+    return environment;
+  }
+
+  public get_at(distance: number, name: string): Literal {
+    return this.ancestor(distance)?.values.get(name);
   }
 }

@@ -16,6 +16,7 @@ export namespace Stmt {
     visit_return_stmt(stmt: Return): R;
     visit_var_stmt(stmt: Var): R;
     visit_while_stmt(stmt: While): R;
+    visit_for_stmt(stmt: For): R;
   }
 
   export class Block extends Stmt {
@@ -31,7 +32,7 @@ export namespace Stmt {
   export class Class extends Stmt {
     constructor(
       public readonly name: Token,
-      public readonly superclass: Expr.Variable | undefined,
+      public readonly superclass: Var,
       public readonly methods: Array<Fn>
     ) {
       super();
@@ -70,7 +71,7 @@ export namespace Stmt {
     constructor(
       public readonly condition: Expr,
       public readonly then_branch: Stmt,
-      public readonly else_branch?: Stmt
+      public readonly else_branch: Stmt | null
     ) {
       super();
     }
@@ -93,7 +94,7 @@ export namespace Stmt {
   export class Return extends Stmt {
     constructor(
       public readonly keyword: Token,
-      public readonly value?: Expr
+      public readonly value: Expr | null
     ) {
       super();
     }
@@ -106,7 +107,7 @@ export namespace Stmt {
   export class Var extends Stmt {
     constructor(
       public readonly name: Token,
-      public readonly initializer?: Expr
+      public readonly initializer: Expr | null
     ) {
       super();
     }
@@ -123,6 +124,21 @@ export namespace Stmt {
 
     accept<R>(visitor: Visitor<R>): R {
       return visitor.visit_while_stmt(this);
+    }
+  }
+
+  export class For extends Stmt {
+    constructor(
+      public readonly initializer: Stmt | null,
+      public readonly condition: Expr | null,
+      public readonly increment: Expr | null,
+      public readonly body: Stmt
+    ) {
+      super();
+    }
+
+    accept<R>(visitor: Visitor<R>): R {
+      return visitor.visit_for_stmt(this);
     }
   }
 }

@@ -3,7 +3,7 @@ import { match } from '@rqft/rust';
 import { Callable } from './callable';
 import { Environment } from './environment';
 import { Everest } from './everest';
-import type { Expr } from './expr';
+import { Expr } from './expr';
 import { Fn } from './fn';
 import { Return } from './return';
 import { RuntimeError } from './runtime_error';
@@ -158,6 +158,7 @@ export class Interpreter implements Expr.Visitor<Literal>, Stmt.Visitor<void> {
     left: Literal,
     right: Literal
   ): void {
+    console.log(operator, left, right);
     if (typeof left === 'number' && typeof right === 'number') {
       return;
     }
@@ -170,7 +171,9 @@ export class Interpreter implements Expr.Visitor<Literal>, Stmt.Visitor<void> {
     this.environment.assign(expr.name, value);
     return value;
   }
+
   visit_call_expr(expr: Expr.Call): Literal {
+    console.log('using call', expr);
     const callee = this.eval(expr.callee);
 
     const argv = [];
@@ -231,7 +234,7 @@ export class Interpreter implements Expr.Visitor<Literal>, Stmt.Visitor<void> {
 
   visit_print_stmt(stmt: Stmt.Print): void {
     const value = this.eval(stmt.expression);
-    (this.stringify(value));
+    console.log(this.stringify(value));
   }
 
   visit_block_stmt(stmt: Stmt.Block): void {
@@ -275,15 +278,33 @@ export class Interpreter implements Expr.Visitor<Literal>, Stmt.Visitor<void> {
   }
   visit_var_stmt(stmt: Stmt.Var): void {
     let value = null;
+    console.log('var', stmt);
     if (stmt.initializer !== null) {
       value = this.eval(stmt.initializer);
     }
 
+    console.log('ok', value);
+
     this.environment.define(stmt.name.lexeme, value);
+
+    console.log(stmt.name, this.environment.get(stmt.name));
   }
   visit_while_stmt(stmt: Stmt.While): void {
     while (this.is_truthy(this.eval(stmt.condition))) {
       this.exec(stmt.body);
+    }
+  }
+
+  visit_for_stmt(stmt: Stmt.For): void {
+    if (stmt.initializer) {
+      this.exec(stmt.initializer);
+    }
+
+    while (this.eval(stmt.condition || new Expr.Literal(false))) {
+      this.exec(stmt.body);
+      if (stmt.increment) {
+        this.eval(stmt.increment);
+      }
     }
   }
 }

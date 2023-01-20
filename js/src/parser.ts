@@ -1,59 +1,17 @@
-import { Everest } from './everest';
 import { Expr } from './expr';
 import { Stmt } from './stmt';
 import type { Token } from './token';
 import { TokenKind } from './token_kind';
 
 export class Parser {
+  private readonly tokens: Array<Token>;
   private current = 0;
-  constructor(private readonly tokens: Array<Token>) {}
 
-  private expression(): Expr {
-    return this.assignment();
+  constructor(tokens: Array<Token>) {
+    this.tokens = tokens;
   }
 
-  private assignment(): Expr {
-    const expr = this.or();
-    if (this.is(TokenKind.Eq)) {
-      const equals = this.prev();
-      const value = this.assignment();
-
-      if (expr instanceof Expr.Variable) {
-        const name = expr.name;
-        return new Expr.Assign(name, value);
-      }
-
-      this.error(equals, 'invalid assignment target');
-    }
-
-    return expr;
-  }
-
-  private or(): Expr {
-    let expr = this.and();
-
-    while (this.is(TokenKind.Or)) {
-      const operator = this.prev();
-      const right = this.and();
-      expr = new Expr.Logical(expr, operator, right);
-    }
-
-    return expr;
-  }
-
-  private and(): Expr {
-    let expr = this.equality();
-
-    while (this.is(TokenKind.And)) {
-      const operator = this.prev();
-      const right = this.equality();
-      expr = new Expr.Logical(expr, operator, right);
-    }
-
-    return expr;
-  }
-
-  public parse(): Array<Stmt | null> {
+  public parse(): Array<Stmt | undefined> {
     const statements = [];
     while (!this.is_at_end()) {
       statements.push(this.declaration());
@@ -62,165 +20,204 @@ export class Parser {
     return statements;
   }
 
-  private declaration(): Stmt | null {
+  private expression(): Expr {
+    return this.assignment();
+  }
+
+  private declaration(): Stmt | undefined {
     try {
-      if (this.is(TokenKind.Fn)) {
+      if (this.match(TokenKind.Class)) {
+        return this.class_declaration();
+      }
+
+      if (this.match(TokenKind.Fn)) {
         return this.fn('function');
       }
 
-      if (this.is(TokenKind.Var)) {
+      if (this.match(TokenKind.Var)) {
         return this.var_declaration();
       }
+
       return this.statement();
-    } catch {
+    } catch (e) {
       this.sync();
-      return null;
+      return undefined;
     }
   }
 
-  private fn(kind: string): Stmt.Fn {
-    const name = this.consume(TokenKind.Identifier, `expected ${kind} name`);
-    this.consume(TokenKind.LeftParen, `expected '(' after ${kind} name`);
-    const params = [];
+  private class_declaration() {
+    const name = this.consume(TokenKind.Identifier, 'expected class name');
 
-    if (!this.check(TokenKind.RightParen)) {
-      do {
-        if (params.length >= 255) {
-          this.error(this.peek(), 'fn must have <= 255 parameters');
-        }
-
-        params.push(
-          this.consume(TokenKind.Identifier, 'expected parameter name')
-        );
-      } while (this.is(TokenKind.Comma));
+    let super_class = undefined;
+    if (this.match(TokenKind.Lt)) {
+      this.consume(TokenKind.Identifier, 'expected superclass name');
+      super_class = new Expr.Variable(this.prev());
     }
 
-    this.consume(TokenKind.RightParen, 'expected \')\' after parameters');
+    this.consume(TokenKind.LeftBrace, 'expected \'{\' before class body');
 
-    this.consume(TokenKind.LeftBrace, `expected '{' before ${kind} body`);
+    const methods = [];
 
-    const body = this.block();
-    return new Stmt.Fn(name, params, body);
-  }
-
-  private var_declaration(): Stmt {
-    const name = this.consume(TokenKind.Identifier, 'expected variable name');
-
-    let initializer = null;
-    if (this.is(TokenKind.Eq)) {
-      initializer = this.expression();
+    while (!this.check(TokenKind.RightBrace) && !this.is_at_end()) {
+      methods.push(this.fn('method'));
     }
 
-    this.consume(
-      TokenKind.Semicolon,
-      'expected \';\' after variable declaration'
-    );
-    return new Stmt.Var(name, initializer);
+    this.consume(TokenKind.RightBrace, 'expected \'}\' after class body');
+
+    return new Stmt.Class(name, super_class, methods);
   }
 
   private statement(): Stmt {
-    if (this.is(TokenKind.For)) {
+    if (this.match(TokenKind.For)) {
       return this.for_statement();
     }
-    if (this.is(TokenKind.If)) {
+    if (this.match(TokenKind.If)) {
       return this.if_statement();
     }
-    if (this.is(TokenKind.Print)) {
+    if (this.match(TokenKind.Print)) {
       return this.print_statement();
     }
-    if (this.is(TokenKind.Return)) {
+    if (this.match(TokenKind.Return)) {
       return this.return_statement();
     }
-    if (this.is(TokenKind.While)) {
+    if (this.match(TokenKind.While)) {
       return this.while_statement();
     }
-    if (this.is(TokenKind.LeftBrace)) {
+    if (this.match(TokenKind.LeftBrace)) {
       return new Stmt.Block(this.block());
     }
     return this.expression_statement();
   }
 
-  private return_statement(): Stmt {
-    const keyword = this.prev();
-    let value = null;
-    if (!this.check(TokenKind.Semicolon)) {
-      value = this.expression();
-    }
-
-    this.consume(TokenKind.Semicolon, 'expected \';\' after return value');
-
-    return new Stmt.Return(keyword, value);
-  }
-
   private for_statement(): Stmt {
     this.consume(TokenKind.LeftParen, 'expected \'(\' after `for`');
-    let initializer: Stmt | null;
-    if (this.is(TokenKind.Semicolon)) {
-      initializer = null;
-    } else if (this.is(TokenKind.Var)) {
+
+    let initializer;
+    if (this.match(TokenKind.Semi)) {
+      initializer = undefined;
+    } else if (this.match(TokenKind.Var)) {
       initializer = this.var_declaration();
     } else {
       initializer = this.expression_statement();
     }
 
-    let condition = null;
-    if (!this.check(TokenKind.Semicolon)) {
+    let condition = undefined;
+    if (!this.check(TokenKind.Semi)) {
       condition = this.expression();
     }
 
-    this.consume(TokenKind.Semicolon, 'expected \';\' after loop condition');
+    this.consume(TokenKind.Semi, 'expected \';\' after loop condition');
 
-    let increment = null;
+    let incr = undefined;
     if (!this.check(TokenKind.RightParen)) {
-      increment = this.expression();
+      incr = this.expression();
     }
 
-    this.consume(TokenKind.RightParen, 'expected \')\' after `for` header');
+    this.consume(TokenKind.RightParen, 'expected \')\' after for clauses');
 
     let body = this.statement();
 
-    if (increment !== null) {
-      body = new Stmt.Block([body, new Stmt.Expression(increment)]);
+    if (incr !== undefined) {
+      body = new Stmt.Block([body, new Stmt.Expression(incr)]);
     }
 
-    if (condition === null) {
+    if (condition === undefined) {
       condition = new Expr.Literal(true);
     }
+
     body = new Stmt.While(condition, body);
 
-    if (initializer !== null) {
+    if (initializer !== undefined) {
       body = new Stmt.Block([initializer, body]);
     }
 
     return body;
   }
 
-  private while_statement(): Stmt {
-    this.consume(TokenKind.LeftParen, 'expected \'(\' after `while`');
-    const condition = this.expression();
-    this.consume(TokenKind.RightParen, 'expected \')\' after `while` condition');
-    const body = this.statement();
-
-    return new Stmt.While(condition, body);
-  }
-
-  private if_statement(): Stmt {
+  private if_statement() {
     this.consume(TokenKind.LeftParen, 'expected \'(\' after `if`');
     const condition = this.expression();
+
     this.consume(TokenKind.RightParen, 'expected \')\' after `if` condition');
 
     const then_branch = this.statement();
-    let else_branch = null;
-    if (this.is(TokenKind.Else)) {
+    let else_branch = undefined;
+    if (this.match(TokenKind.Else)) {
       else_branch = this.statement();
     }
 
     return new Stmt.If(condition, then_branch, else_branch);
   }
 
+  private print_statement(): Stmt {
+    const value = this.expression();
+    this.consume(TokenKind.Semi, 'expected \';\' after value');
+    return new Stmt.Print(value);
+  }
+
+  private return_statement(): Stmt {
+    const keyword = this.prev();
+    let value = undefined;
+    if (!this.check(TokenKind.Semi)) {
+      value = this.expression();
+    }
+
+    this.consume(TokenKind.Semi, 'expected \';\' after return value');
+    return new Stmt.Return(keyword, value);
+  }
+
+  private var_declaration(): Stmt {
+    const name = this.consume(TokenKind.Identifier, 'expected variable name');
+
+    let initializer = undefined;
+    if (this.match(TokenKind.Eq)) {
+      initializer = this.expression();
+    }
+
+    this.consume(TokenKind.Semi, 'expected \';\' after variable declaration');
+    return new Stmt.Var(name, initializer);
+  }
+
+  private while_statement(): Stmt {
+    this.consume(TokenKind.LeftParen, 'expected \'(\' after `while`');
+    const condition = this.expression();
+    this.consume(TokenKind.RightParen, 'expected \')\' after condition');
+    const body = this.statement();
+
+    return new Stmt.While(condition, body);
+  }
+
+  private expression_statement(): Stmt {
+    const expr = this.expression();
+    this.consume(TokenKind.Semi, 'expected \';\' after expression');
+    return new Stmt.Expression(expr);
+  }
+
+  private fn(kind: string): Stmt {
+    const name = this.consume(TokenKind.Identifier, `expected ${kind} name`);
+    this.consume(TokenKind.LeftParen, `expected '(' after ${kind} name`);
+
+    const parameters = [];
+    if (!this.check(TokenKind.RightParen)) {
+      do {
+        if (parameters.length >= 255) {
+          this.error(this.peek(), 'cannot have >255 parameters');
+        }
+
+        parameters.push(
+          this.consume(TokenKind.Identifier, 'expected parameter name')
+        );
+      } while (this.match(TokenKind.Comma));
+    }
+
+    this.consume(TokenKind.RightParen, 'expected \')\' after parameters');
+    this.consume(TokenKind.LeftBrace, `expected '{' before ${kind} body`);
+    const body = this.block();
+    return new Stmt.Fn(name, parameters, body);
+  }
+
   private block(): Array<Stmt> {
     const statements = [];
-
     while (!this.check(TokenKind.RightBrace) && !this.is_at_end()) {
       statements.push(this.declaration() as Stmt);
     }
@@ -229,161 +226,18 @@ export class Parser {
     return statements;
   }
 
-  private print_statement(): Stmt {
-    const value = this.expression();
-    this.consume(TokenKind.Semicolon, 'expected \';\' after value');
-    return new Stmt.Print(value);
-  }
+  // todo
 
-  private expression_statement(): Stmt {
-    const expr = this.expression();
-    this.consume(TokenKind.Semicolon, 'expected \';\' after expression');
-    return new Stmt.Expression(expr);
-  }
+  private match(...kinds: Array<TokenKind>): boolean {
+    for (const kind of kinds) {
+      if (this.check(kind)) {
+        this.next();
 
-  public sync(): void {
-    this.next();
-    while (!this.is_at_end()) {
-      if (this.prev().kind === TokenKind.Semicolon) {
-        return;
-      }
-      switch (this.peek().kind) {
-      case TokenKind.Class:
-      case TokenKind.Fn:
-      case TokenKind.Var:
-      case TokenKind.For:
-      case TokenKind.If:
-      case TokenKind.While:
-      case TokenKind.Print:
-      case TokenKind.Return:
-        return;
-      }
-
-      this.next();
-    }
-  }
-
-  private equality(): Expr {
-    let expr = this.comparison();
-    while (this.is(TokenKind.Ne, TokenKind.EqEq)) {
-      const operator = this.prev();
-      const right = this.comparison();
-      expr = new Expr.Binary(expr, operator, right);
-    }
-
-    return expr;
-  }
-
-  private comparison(): Expr {
-    let expr = this.term();
-    while (this.is(TokenKind.Gt, TokenKind.Ge, TokenKind.Lt, TokenKind.Le)) {
-      const operator = this.prev();
-      const right = this.term();
-      expr = new Expr.Binary(expr, operator, right);
-    }
-
-    return expr;
-  }
-
-  private term(): Expr {
-    let expr = this.factor();
-
-    while (this.is(TokenKind.Minus, TokenKind.Plus)) {
-      const operator = this.prev();
-      const right = this.factor();
-      expr = new Expr.Binary(expr, operator, right);
-    }
-
-    return expr;
-  }
-
-  private factor(): Expr {
-    let expr = this.unary();
-
-    while (this.is(TokenKind.Slash, TokenKind.Star)) {
-      const operator = this.prev();
-      const right = this.unary();
-      expr = new Expr.Binary(expr, operator, right);
-    }
-
-    return expr;
-  }
-
-  private unary(): Expr {
-    if (this.is(TokenKind.Bang, TokenKind.Minus)) {
-      const operator = this.prev();
-      const right = this.unary();
-      return new Expr.Unary(operator, right);
-    }
-
-    return this.call();
-  }
-
-  private call(): Expr {
-    let expr = this.primary();
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, no-constant-condition
-    while (true) {
-      if (this.is(TokenKind.LeftParen)) {
-        expr = this.finish_call(expr);
-      } else {
-        break;
+        return true;
       }
     }
 
-    return expr;
-  }
-
-  private finish_call(callee: Expr): Expr {
-    
-    const argv = [];
-    if (!this.check(TokenKind.RightParen)) {
-      do {
-        if (argv.length >= 255) {
-          this.error(this.peek(), 'fn must have <=255 arguments');
-        }
-
-        argv.push(this.expression());
-      } while (this.is(TokenKind.Comma));
-    }
-
-    const paren = this.consume(
-      TokenKind.RightParen,
-      'expected \')\' after fn arguments'
-    );
-
-    console.log(callee, argv)
-
-    return new Expr.Call(callee, paren, argv);
-  }
-
-  private primary(): Expr {
-    if (this.is(TokenKind.False)) {
-      return new Expr.Literal(false);
-    }
-
-    if (this.is(TokenKind.True)) {
-      return new Expr.Literal(true);
-    }
-
-    if (this.is(TokenKind.None)) {
-      return new Expr.Literal(null);
-    }
-
-    if (this.is(TokenKind.Number, TokenKind.String)) {
-      return new Expr.Literal(this.prev().literal);
-    }
-
-    if (this.is(TokenKind.Identifier)) {
-      return new Expr.Variable(this.prev());
-    }
-
-    if (this.is(TokenKind.LeftParen)) {
-      const expr = this.expression();
-      this.consume(TokenKind.RightParen, 'expected \')\' after expression');
-      return new Expr.Grouping(expr);
-    }
-
-    throw this.error(this.peek(), 'expected expression');
+    return false;
   }
 
   private consume(kind: TokenKind, message: string): Token {
@@ -391,23 +245,6 @@ export class Parser {
       return this.next();
     }
     throw this.error(this.peek(), message);
-  }
-
-  private error(token: Token, message: string): ParseError {
-    Everest.error_with(token, message);
-
-    return new ParseError();
-  }
-
-  private is(...kinds: Array<TokenKind>): boolean {
-    for (const kind of kinds) {
-      if (this.check(kind)) {
-        this.next();
-        return true;
-      }
-    }
-
-    return false;
   }
 
   private check(kind: TokenKind): boolean {
@@ -429,11 +266,40 @@ export class Parser {
   }
 
   private peek(): Token {
-    return this.tokens[this.current] as never;
+    return this.tokens[this.current] as Token;
   }
 
-  private prev(): Token {
-    return this.tokens[this.current - 1] as never;
+  private prev() {
+    return this.tokens[this.current - 1] as Token;
+  }
+
+  private error(token: Token, message: string): ParseError {
+    Everest.error(token, message);
+    return new ParseError();
+  }
+
+  private sync(): void {
+    this.next();
+
+    while (!this.is_at_end()) {
+      if (this.prev().kind === TokenKind.Semi) {
+        return;
+      }
+
+      switch (this.peek().kind) {
+      case TokenKind.Class:
+      case TokenKind.Fn:
+      case TokenKind.Var:
+      case TokenKind.For:
+      case TokenKind.If:
+      case TokenKind.While:
+      case TokenKind.Print:
+      case TokenKind.Return:
+        return;
+      }
+
+      this.next();
+    }
   }
 }
 

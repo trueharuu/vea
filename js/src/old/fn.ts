@@ -17,8 +17,10 @@ export class Fn extends Callable {
     }
 
     try {
+      console.log('running fn');
       interpreter.exec_block(this.declaration.body, env);
     } catch (e) {
+      console.log('hit a return', e);
       return (e as Return).value;
     }
 

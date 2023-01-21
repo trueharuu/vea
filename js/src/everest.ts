@@ -1,11 +1,14 @@
+import { Interpreter } from './interpreter';
 import { Parser } from './parser';
+import { Resolver } from './resolver';
 import type { RuntimeError } from './runtime_error';
 import { Scanner } from './scanner';
+import type { Stmt } from './stmt';
 import type { Token } from './token';
 import { TokenKind } from './token_kind';
 
 export class Everest {
-  // private static readonly interpreter = new Interpreter();
+  private static readonly interpreter = new Interpreter();
   private static had_error = false;
   private static had_runtime_error = false;
   public static run(source: string): void {
@@ -20,15 +23,15 @@ export class Everest {
       return process.exit(64);
     }
 
-    // const resolver = new Resolver(this.interpreter);
-    // resolver.resolve(statements);
+    const resolver = new Resolver(this.interpreter);
+    resolver.resolve(statements as Array<Stmt>);
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (this.had_error) {
       return process.exit(64);
     }
 
-    // this.interpreter.interpret(statements);
+    this.interpreter.interpret(statements as Array<Stmt>);
 
     if (this.had_runtime_error) {
       process.exit(70);
@@ -53,6 +56,7 @@ export class Everest {
   }
 
   public static runtime_error(error: RuntimeError): void {
+    console.error(error);
     console.error(`${error.message}\n[line ${error.token.line}]`);
     this.had_runtime_error = true;
   }

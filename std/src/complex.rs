@@ -1,4 +1,4 @@
-use std::ops::{ Neg, Add, Sub, Mul, Div };
+use std::{ops::{ Neg, Add, Sub, Mul, Div }, fmt::Display};
 
 use crate::imaginary::i;
 
@@ -50,6 +50,12 @@ impl Complex {
     }
 }
 
+impl Display for Complex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} + {}", self.r, self.i)
+    }
+}
+
 impl Neg for Complex {
     type Output = Self;
     fn neg(self) -> Self::Output {
@@ -68,6 +74,13 @@ impl Add<f64> for Complex {
     type Output = Self;
     fn add(self, rhs: f64) -> Self::Output {
         Self::new(self.r + rhs, self.i)
+    }
+}
+
+impl Add<Complex> for f64 {
+    type Output = Complex;
+    fn add(self, rhs: Complex) -> Self::Output {
+        rhs + self
     }
 }
 

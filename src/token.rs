@@ -1,0 +1,15 @@
+pub enum Token {
+    Whitespace,
+    Comment,
+    Integer(i64),
+    Print,
+    Assign,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    LeftParen,
+    RightParen,
+    Semi,
+    Ident(String),
+}

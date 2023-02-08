@@ -35,7 +35,36 @@ parser! {
             span: span!(),
             node: Node::Assign(var, Box::new(rhs)),
         },
-        term[t] => t,
+        cmp[t] => t,
+    }
+
+    
+    cmp: Expr {
+      term[lhs] Eq term[rhs] => Expr {
+        span: span!(),
+        node: Node::Eq(Box::new(lhs), Box::new(rhs)),
+      },
+      term[lhs] Ne term[rhs] => Expr {
+        span: span!(),
+        node: Node::Ne(Box::new(lhs), Box::new(rhs)),
+      },
+      term[lhs] Gt term[rhs] => Expr {
+        span: span!(),
+        node: Node::Gt(Box::new(lhs), Box::new(rhs)),
+      },
+      term[lhs] Lt term[rhs] => Expr {
+        span: span!(),
+        node: Node::Lt(Box::new(lhs), Box::new(rhs)),
+      },
+      term[lhs] Ge term[rhs] => Expr {
+        span: span!(),
+        node: Node::Ge(Box::new(lhs), Box::new(rhs)),
+      },
+      term[lhs] Le term[rhs] => Expr {
+        span: span!(),
+        node: Node::Le(Box::new(lhs), Box::new(rhs)),
+      },
+        term[x] => x
     }
 
     term: Expr {
@@ -48,10 +77,6 @@ parser! {
             node: Node::Sub(Box::new(lhs), Box::new(rhs)),
         },
         fact[x] => x
-    }
-
-    cmp: Expr {
-        cmp[]
     }
 
     fact: Expr {
@@ -93,7 +118,7 @@ parser! {
 }
 
 pub fn parse<I: Iterator<Item = (Token, Span)>>(
-    i: I,
+    i: I
 ) -> Result<Program, (Option<(Token, Span)>, &'static str)> {
     parse_(i)
 }

@@ -25,11 +25,15 @@ parser! {
     assign: Expr {
         Print assign[a] => Expr {
             span: span!(),
-            node: Expr_::Print(Box::new(a)),
+            node: Node::Print(Box::new(a)),
+        },
+        Typeof assign[a] => Expr {
+            span: span!(),
+            node: Node::Typeof(Box::new(a)),
         },
         Ident(var) Equals assign[rhs] => Expr {
             span: span!(),
-            node: Expr_::Assign(var, Box::new(rhs)),
+            node: Node::Assign(var, Box::new(rhs)),
         },
         term[t] => t,
     }
@@ -37,23 +41,27 @@ parser! {
     term: Expr {
         term[lhs] Plus fact[rhs] => Expr {
             span: span!(),
-            node: Expr_::Add(Box::new(lhs), Box::new(rhs)),
+            node: Node::Add(Box::new(lhs), Box::new(rhs)),
         },
         term[lhs] Minus fact[rhs] => Expr {
             span: span!(),
-            node: Expr_::Sub(Box::new(lhs), Box::new(rhs)),
+            node: Node::Sub(Box::new(lhs), Box::new(rhs)),
         },
         fact[x] => x
+    }
+
+    cmp: Expr {
+        cmp[]
     }
 
     fact: Expr {
         fact[lhs] Star atom[rhs] => Expr {
             span: span!(),
-            node: Expr_::Mul(Box::new(lhs), Box::new(rhs)),
+            node: Node::Mul(Box::new(lhs), Box::new(rhs)),
         },
         fact[lhs] Slash atom[rhs] => Expr {
             span: span!(),
-            node: Expr_::Div(Box::new(lhs), Box::new(rhs)),
+            node: Node::Div(Box::new(lhs), Box::new(rhs)),
         },
         atom[x] => x
     }
@@ -62,18 +70,30 @@ parser! {
         // round brackets to destructure tokens
         Ident(i) => Expr {
             span: span!(),
-            node: Expr_::Var(i),
+            node: Node::Var(i),
         },
         Integer(i) => Expr {
             span: span!(),
-            node: Expr_::Literal(i),
+            node: Node::Literal(Literal::Integer(i)),
         },
-        LeftParen assign[a] RightParen => a
+        String(i) => Expr {
+            span: span!(),
+            node: Node::Literal(Literal::String(i))
+        },
+        True => Expr {
+            span: span!(),
+            node: Node::Literal(Literal::Boolean(true))
+        },
+        False => Expr {
+            span: span!(),
+            node: Node::Literal(Literal::Boolean(false))
+        },
+        LeftParen assign[a] RightParen => a,
     }
 }
 
 pub fn parse<I: Iterator<Item = (Token, Span)>>(
-    i: I
+    i: I,
 ) -> Result<Program, (Option<(Token, Span)>, &'static str)> {
     parse_(i)
 }

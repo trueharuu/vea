@@ -2,19 +2,33 @@ use plex::lexer;
 
 #[derive(Debug, Clone)]
 pub enum Token {
-    Ident(String),
+    Ident(String), // abc
 
-    Print,
+    Typeof, // typeof
+    Print, // print
 
-    Integer(i64),
-    Equals,
-    Plus,
-    Minus,
-    Star,
-    Slash,
-    LeftParen,
-    RightParen,
-    Semi,
+    Integer(i64), // 123
+    String(String), // "abc"
+    True, // true
+    False, // false
+
+    Equals, // =
+    Plus, // +
+    Minus, // -
+    Star, // *
+    Slash, // /
+    LeftParen, // (
+    RightParen, // )
+    LeftBracket, // [
+    RightBracket, // ]
+    Comma, // ,
+    Semi, // ;
+    Gt, // >
+    Ge, // >=
+    Lt, // <
+    Le, // <=
+    Eq, // ==
+    Ne, // !=
 
     Whitespace,
     Comment,
@@ -30,6 +44,7 @@ lexer! {
     r#"//[^\n]*"# => Token::Comment,
 
     r#"print"# => Token::Print,
+    r#"typeof"# => Token::Typeof,
 
     r#"[0-9]+"# => {
         if let Ok(i) = text.parse() {
@@ -38,6 +53,18 @@ lexer! {
             panic!("integer {} is out of range", text)
         }
     }
+
+    r#"\["# => Token::LeftBracket,
+    r#"\]"# => Token::LeftBracket,
+
+    r#"true"# => Token::True,
+    r#"false"# => Token::False,
+
+    r#","# => Token::Comma,
+    
+    r#"\".*\""# => 
+        Token::String(text[1..(text.len() - 1)].to_owned()),
+    
 
     r#"[a-zA-Z_][a-zA-Z0-9_]*"# => Token::Ident(text.to_owned()),
 
@@ -49,6 +76,15 @@ lexer! {
     r#"\("# => Token::LeftParen,
     r#"\)"# => Token::RightParen,
     r#";"# => Token::Semi,
+    
+    r#">"# => Token::Gt,
+    r#"<"# => Token::Lt,
+    
+    r#">="# => Token::Ge,
+    r#"<="# => Token::Le,
+    
+    r#"=="# => Token::Eq,
+    r#"!="# => Token::Ne,
 
     r#"."# => panic!("unexpected character: {}", text),
 }

@@ -35,7 +35,37 @@ parser! {
             span: span!(),
             node: Node::Assign(var, Box::new(rhs)),
         },
+
+        Env Ident(var) => Expr {
+          span: span!(),
+          node: Node::Env(var),
+        },
+
+        Ident(var) Dot Ident(prop) Equals assign[rhs] => Expr {
+          span: span!(),
+          node: Node::Set(var, prop, Box::new(rhs))
+        },
+
+        Ident(obj) Dot Ident(prop) => Expr {
+          span: span!(),
+          node: Node::Get(obj, prop)
+        },
+
+        Fn Ident(name) LeftParen list[a] RightParen LeftBrace statements[s] RightBrace => Expr {
+          span: span!(),
+          node: Node::Fn(name, Box::new(a), s)
+        },
+
         cmp[t] => t,
+    }
+
+    list: Expr {
+      cmp[lhs] Comma list[rhs] => Expr {
+        span: span!(),
+        node: Node::Pair(Box::new(lhs), Box::new(rhs))
+      },
+
+      cmp[lhs] => lhs
     }
 
     
@@ -112,6 +142,10 @@ parser! {
         False => Expr {
             span: span!(),
             node: Node::Literal(Literal::Boolean(false))
+        },
+        Bang => Expr {
+          span: span!(),
+          node: Node::Literal(Literal::None)
         },
         LeftParen assign[a] RightParen => a,
     }

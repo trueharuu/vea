@@ -12,7 +12,7 @@ pub mod interpreter;
 
 fn main() {
     // std::env::set_var("RUST_BACKTRACE", "1");
-    let s = "print(1 > 2);".to_owned();
+    let s = "env obj; obj.a = 1; obj.a.b = 2; print obj.a.b;".to_owned();
     println!("running \"{s}\"");
     let lexer = Lexer::new(&s);
     let prog = parse(lexer).unwrap();

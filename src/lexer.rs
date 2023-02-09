@@ -4,8 +4,10 @@ use plex::lexer;
 pub enum Token {
     Ident(String), // abc
 
-    Typeof, // typeof
-    Print, // print
+    Typeof, // typeof a
+    Print, // print a
+    Env, // env a
+    Fn, // fn
 
     Integer(i64), // 123
     String(String), // "abc"
@@ -17,11 +19,15 @@ pub enum Token {
     Minus, // -
     Star, // *
     Slash, // /
+    Bang, // !
     LeftParen, // (
     RightParen, // )
     LeftBracket, // [
     RightBracket, // ]
+    LeftBrace,
+    RightBrace,
     Comma, // ,
+    Dot, // .
     Semi, // ;
     Gt, // >
     Ge, // >=
@@ -55,7 +61,10 @@ lexer! {
     }
 
     r#"\["# => Token::LeftBracket,
-    r#"\]"# => Token::LeftBracket,
+    r#"\]"# => Token::RightBracket,
+
+    r#"\{"# => Token::LeftBrace,
+    r#"\}"# => Token::RightBrace,
 
     r#"true"# => Token::True,
     r#"false"# => Token::False,
@@ -64,7 +73,7 @@ lexer! {
     
     r#"\".*\""# => 
         Token::String(text[1..(text.len() - 1)].to_owned()),
-    
+    r#"env"# => Token::Env,
 
     r#"[a-zA-Z_][a-zA-Z0-9_]*"# => Token::Ident(text.to_owned()),
 
@@ -76,6 +85,7 @@ lexer! {
     r#"\("# => Token::LeftParen,
     r#"\)"# => Token::RightParen,
     r#";"# => Token::Semi,
+    r#"!"# => Token::Bang,
     
     r#">"# => Token::Gt,
     r#"<"# => Token::Lt,
@@ -85,6 +95,8 @@ lexer! {
     
     r#"=="# => Token::Eq,
     r#"!="# => Token::Ne,
+
+    r#"\."# => Token::Dot,
 
     r#"."# => panic!("unexpected character: {}", text),
 }

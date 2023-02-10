@@ -80,6 +80,7 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
             env.insert(var, Literal::Object(HashMap::new()));
             Literal::None
         }
+        
         Set(ref obj, ref prop, ref value) => {
             let mut e = env.clone();
             println!("{e:?}");

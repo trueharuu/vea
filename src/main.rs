@@ -12,7 +12,7 @@ pub mod interpreter;
 
 fn main() {
     // std::env::set_var("RUST_BACKTRACE", "1");
-    let s = "0u8 == 0u16;".to_owned();
+    let s = "print typeof [1, 2, 3];".to_owned();
     println!("running \"{s}\"");
     let lexer = Lexer::new(&s);
     let mut prog = parse(lexer).unwrap();

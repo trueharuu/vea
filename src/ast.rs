@@ -1,6 +1,6 @@
 use std::{ fmt::Display, collections::HashMap, ops::{ Add, Sub, Mul, Div } };
 
-use crate::{ lexer::{Span, Integer}, b };
+use crate::{ lexer::Span, token::Integer, b };
 
 #[derive(Debug, Clone)]
 pub struct Program {
@@ -36,6 +36,8 @@ pub enum Node {
     InnerEnv(b![Expr]),
     Set(b![Expr], b![Expr]),
     Get(String, Vec<String>),
+
+    List(b![Expr]),
 }
 
 #[derive(Debug, Clone)]

@@ -1,5 +1,5 @@
 use crate::ast::*;
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 pub fn interp<'a>(p: &'a mut Program) {
     let mut env = HashMap::new();
@@ -7,7 +7,7 @@ pub fn interp<'a>(p: &'a mut Program) {
         interp_expr(&mut env, expr);
     }
 }
-fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a mut Expr) -> Literal {
+fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Literal {
     use crate::ast::Node::{
         Add,
         Assign,
@@ -28,47 +28,48 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a mut Expr) -> L
         Set,
         Get,
         InnerEnv,
+        List,
     };
     // println!("{expr:#?}");
-    match &mut expr.node {
-        Add(ref mut a, ref mut b) => interp_expr(env, a) + interp_expr(env, b),
-        Sub(ref mut a, ref mut b) => interp_expr(env, a) - interp_expr(env, b),
-        Mul(ref mut a, ref mut b) => interp_expr(env, a) * interp_expr(env, b),
-        Div(ref mut a, ref mut b) => interp_expr(env, a) / interp_expr(env, b),
-        Assign(ref mut var, ref mut b) => {
+    match &expr.node {
+        Add(ref a, ref b) => interp_expr(env, a) + interp_expr(env, b),
+        Sub(ref a, ref b) => interp_expr(env, a) - interp_expr(env, b),
+        Mul(ref a, ref b) => interp_expr(env, a) * interp_expr(env, b),
+        Div(ref a, ref b) => interp_expr(env, a) / interp_expr(env, b),
+        Assign(ref var, ref b) => {
             let val = interp_expr(env, b);
             env.insert(var, val.clone());
             val
         }
-        Var(ref mut var) =>
+        Var(ref var) =>
             env
                 .get(&var[..])
                 .unwrap()
                 .clone(),
         Node::Literal(ref lit) => lit.clone(),
-        Print(ref mut e) => {
+        Print(ref e) => {
             let val = interp_expr(env, e);
             println!("{}", val);
             val
         }
-        Typeof(ref mut e) => {
+        Typeof(ref e) => {
             let value = interp_expr(env, e);
             Literal::String(value.type_of())
         }
-        Pair(_, ref mut e) => interp_expr(env, e),
-        Eq(ref mut a, ref mut b) => Literal::Boolean(interp_expr(env, a) == interp_expr(env, b)),
-        Ne(ref mut a, ref mut b) => Literal::Boolean(interp_expr(env, a) != interp_expr(env, b)),
-        Gt(ref mut a, ref mut b) => Literal::Boolean(interp_expr(env, a) > interp_expr(env, b)),
-        Lt(ref mut a, ref mut b) => Literal::Boolean(interp_expr(env, a) < interp_expr(env, b)),
-        Ge(ref mut a, ref mut b) => Literal::Boolean(interp_expr(env, a) >= interp_expr(env, b)),
-        Le(ref mut a, ref mut b) => Literal::Boolean(interp_expr(env, a) <= interp_expr(env, b)),
+        Pair(_, ref e) => interp_expr(env, e),
+        Eq(ref a, ref b) => Literal::Boolean(interp_expr(env, a) == interp_expr(env, b)),
+        Ne(ref a, ref b) => Literal::Boolean(interp_expr(env, a) != interp_expr(env, b)),
+        Gt(ref a, ref b) => Literal::Boolean(interp_expr(env, a) > interp_expr(env, b)),
+        Lt(ref a, ref b) => Literal::Boolean(interp_expr(env, a) < interp_expr(env, b)),
+        Ge(ref a, ref b) => Literal::Boolean(interp_expr(env, a) >= interp_expr(env, b)),
+        Le(ref a, ref b) => Literal::Boolean(interp_expr(env, a) <= interp_expr(env, b)),
         Env(ref var) => {
             // let val = Literal::Object(HashMap::new());
             env.insert(var, Literal::Object(HashMap::new()));
             Literal::None
         }
-        InnerEnv(ref mut o) => {
-            if let Get(obj, prop) = &mut o.node {
+        InnerEnv(ref o) => {
+            if let Get(obj, prop) = &o.node {
                 let mut v = env.get_mut(obj.as_str()).unwrap();
 
                 for i in &prop[0..prop.len() - 1] {
@@ -85,8 +86,8 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a mut Expr) -> L
             Literal::None
         }
 
-        Set(ref mut o, ref mut value) => {
-            if let Get(obj, prop) = &mut o.node {
+        Set(ref o, ref value) => {
+            if let Get(obj, prop) = &o.node {
                 let r = interp_expr(env, value);
                 let mut v = env.get_mut(obj.as_str()).unwrap();
 
@@ -116,6 +117,19 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a mut Expr) -> L
             }
 
             v.clone()
+        },
+
+        List(ref e) => {
+            let mut value = Vec::new();
+            let mut node = &e.node;
+            
+            while let Pair(a, b) = node {
+                value.push(interp_expr(env, a));
+                node = &b.node;
+            }
+
+
+            Literal::Array(value)
         }
     }
 }

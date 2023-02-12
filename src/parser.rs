@@ -1,6 +1,6 @@
 use crate::ast::*;
-use crate::lexer::Token::*;
-use crate::lexer::{ Span, Token };
+use crate::token::Token::{self,*};
+use crate::lexer::Span;
 use plex::parser;
 parser! {
     fn parse_(Token, Span);
@@ -74,8 +74,14 @@ parser! {
       Ident(obj) Dot Ident(prop) => Expr {
         span: span!(),
         node: Node::Get(obj, vec![prop])
+      },
+
+      LeftBracket list[l] RightBracket => Expr {
+        span: span!(),
+        node: Node::List(Box::new(l)),
       }
     }
+
 
     list: Expr {
       cmp[lhs] Comma list[rhs] => Expr {

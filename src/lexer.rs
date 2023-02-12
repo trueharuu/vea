@@ -1,21 +1,5 @@
 use plex::lexer;
-use crate::token::Token;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Integer {
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
-    I128(i128),
-    ISize(isize),
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64),
-    U128(u128),
-    USize(usize),
-}
+use crate::token::{ Token, Integer };
 
 lexer! {
     fn next_token(text: 'a) -> Token;
@@ -31,8 +15,8 @@ lexer! {
 
     r#"[0-9]+([ui](8|16|32|64|128|size))?"# => {
       let mut parts = text.split_inclusive(&['i', 'u']);
-
-      let [mut value, ty] = parts.next_chunk().unwrap();
+        dbg!(parts.clone().collect::<Vec<_>>());
+      let [mut value, ty] = [parts.next().unwrap(), parts.next().unwrap_or("")];
       let typ = if value.ends_with(&['i', 'u']) {
           let last = &value[value.len() - 1..];
           value = &value[..value.len() - 1];
@@ -44,7 +28,7 @@ lexer! {
       match typ.as_str() {
         "i8" => Token::Integer(Integer::I8(value.parse::<i8>().unwrap())),
         "i16" => Token::Integer(Integer::I16(value.parse::<i16>().unwrap())),
-        "i32" => Token::Integer(Integer::I32(value.parse::<i32>().unwrap())),
+        "" | "i32" => Token::Integer(Integer::I32(value.parse::<i32>().unwrap())),
         "i64" => Token::Integer(Integer::I64(value.parse::<i64>().unwrap())),
         "i128" => Token::Integer(Integer::I128(value.parse::<i128>().unwrap())),
         "isize" => Token::Integer(Integer::ISize(value.parse::<isize>().unwrap())),
@@ -54,6 +38,7 @@ lexer! {
         "u64" => Token::Integer(Integer::U64(value.parse::<u64>().unwrap())),
         "u128" => Token::Integer(Integer::U128(value.parse::<u128>().unwrap())),
         "usize" => Token::Integer(Integer::USize(value.parse::<usize>().unwrap())),
+
         &_ => panic!("unknown integer type {ty}"),
       }
     }

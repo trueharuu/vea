@@ -79,34 +79,160 @@ trait Div<Y> {
    fn div(&self, other: &Y) -> Self::Output;
 }
 ```
-Eq x == y
-Ne x != y
-Gt x >  y
-Ge x >= y
-Lt x <  y
-Le x <= y
-Assign x = y
-Neg -x
-IntoNumber +x
-Into x::y
-Index x[y]
-Assume x?
-Drop #x
-Restrict x{y}
-Copy &x
-
-Types:
-Integer    : Signed 64-bit integer: 123
-Boolean    : true/false
-String     : "abc"
-Char       : 'a'
-None       : !
-Environment: env a;
-
-Environments:
-Act as both a variable and an environment. You can set properties of it and have treat it like a value.
-```ts
-env container = 1; // set the header value to 1.
-container.a = 2; // set property 'a' to 2.
-container = container.a + container; // set the header value to the value of the property 'a' (2) plus the header value (1)
+## Eq: `x == y`
+Returns `true` if `x` and `y` are equal. Implementing `Eq` implicitly creates this trait.
+```rs
+trait Eq<Y> {
+   fn eq(&self, other: &Y) -> bool;
+}
 ```
+## Ne: `x != y`
+Returns `true` if `x` and `y` are not equal. Implementing `Eq` implicitly creates this trait.
+```rs
+trait Ne<Y> {
+   fn ne(&self, other: &Y) -> bool;
+}
+```
+
+## Gt: `x > y`
+Returns `true` if `x` is explicitly greater than `y`. Implementing this implicitly creates `Le`, `Lt`, and `Ge`.
+```rs
+trait Gt<Y> {
+   fn gt(&self, other: &Y) -> bool;
+}
+```
+## Ge: `x >= y`
+Returns `true` if `x` is greater than or equal to `y`. Implementing this implicitly creates `Le`, `Lt`, and `Gt`.
+```rs
+trait Ge<Y> {
+   fn ge(&self, other: &Y) -> bool;
+}
+```
+## Lt: `x < y`
+Returns `true` if `x` is explicitly less than `y`. Implementing this implicitly creates `Le`, `Gt`, and `Ge`.
+```rs
+trait Lt<Y> {
+   fn lt(&self, other: &Y) -> bool;
+}
+```
+## Le: `x <= y`
+Returns `true` if `x` is less than or equal to `y`. Implementing this implicitly creates `Gt`, `Lt`, and `Ge`.
+```rs
+trait Le<Y> {
+   fn le(&self, other: &Y) -> bool;
+}
+```
+
+## Cmp
+Covers all of the `Gt`, `Ge`, `Lt`, `Le` traits.
+```rs
+trait Cmp<Y> {
+   fn cmp(&self, other: &Y) -> Ordering;
+}
+```
+
+
+## Neg: `-x`
+Returns the negative of `x`. The operation `--x` should return `x`.
+```rs
+trait Neg {
+   type Output;
+   fn neg(&self) -> Self::Output;
+}
+```
+## Into: `x::T`
+Converts `x` into type `T`
+```rs
+trait Into {
+   type T;
+   fn into(&self) -> Self::T;
+}
+```
+
+## Index: `x[y]`
+Gets the value for `y` in `x`.
+```rs
+trait Index<I> {
+   type Output;
+   fn index(&self, index: I) -> Self::Output;
+}
+```
+
+## Assume: `x?`
+Assumes `x` is a "correct" value. An example of this would be in `Result`.
+```rs
+enum T {
+   Good(i32),
+   Bad(i32),
+}
+
+Assume @ T {
+   Output = i32;
+   fn assume() {
+      if self ? Good(m) {
+         return m;
+      } else {
+         return !; // bad case will "never" happen
+      }
+   };
+}
+
+let value = T::Good(123);
+assert(value? == 123);
+
+let bad = T::Bad(123);
+assert(value? == !);
+```
+
+```rs
+trait Assume {
+   type Output;
+   fn assume(&self) -> Self::Output;
+}
+```
+
+## Drop: `#x`
+Destroys a value.
+```rs
+trait Drop {
+   fn drop(&self) -> !;
+}
+```
+
+## Restrict: `x{y}`
+Converts `x` to `!` if the output of `y` is `false`.
+```rs
+trait Restrict {
+   fn restrict(&self, expr: Fn) -> Self;
+}
+```
+
+## Copy: `&x`
+Copies a value. This is automatically for implemented for everything, and can be removed if the output is `!`.
+```rs
+trait Copy {
+   fn copy(&self) -> Self;
+}
+```
+
+## Is: `x?y`
+Returns `true` if `x` matches `y`.
+```rs
+trait Is<Y> {
+   fn is(&self, other: &Y) -> bool;
+}
+```
+
+# Types
+* Integer: `123`, `5u8`
+* Boolean: `true`, `false`
+* String: `"abc"`
+* Char: `'a'`
+* None: `!`
+* Environment: `env a`
+* Set: `(1, 2, 3)`
+* Array: `[1, 2, 2]`
+* Function: `fn a() -> {}`
+
+# Standard Library
+[todo]()

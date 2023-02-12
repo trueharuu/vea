@@ -4,3 +4,4 @@ macro_rules! b {
         Box<$T>
     };
 }
+

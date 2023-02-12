@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::lexer::Token::*;
-use crate::lexer::*;
+use crate::lexer::{ Span, Token };
 use plex::parser;
 parser! {
     fn parse_(Token, Span);
@@ -36,27 +36,45 @@ parser! {
             node: Node::Assign(var, Box::new(rhs)),
         },
 
+        Env get[g] => Expr {
+          span: span!(),
+          node: Node::InnerEnv(Box::new(g))
+        },
+
         Env Ident(var) => Expr {
           span: span!(),
           node: Node::Env(var),
         },
 
-        Ident(var) Dot Ident(prop) Equals assign[rhs] => Expr {
+        get[g] Equals assign[rhs] => Expr {
           span: span!(),
-          node: Node::Set(var, prop, Box::new(rhs))
+          node: Node::Set(Box::new(g), Box::new(rhs))
         },
 
-        Ident(obj) Dot Ident(prop) => Expr {
-          span: span!(),
-          node: Node::Get(obj, prop)
-        },
+        get[t] => t,
 
-        Fn Ident(name) LeftParen list[a] RightParen LeftBrace statements[s] RightBrace => Expr {
-          span: span!(),
-          node: Node::Fn(name, Box::new(a), s)
-        },
+        // Fn Ident(name) LeftParen list[a] RightParen LeftBrace statements[s] RightBrace => Expr {
+        //   span: span!(),
+        //   node: Node::Fn(name, Box::new(a), s)
+        // },
 
         cmp[t] => t,
+    }
+
+    get: Expr {
+      Ident(obj) Dot get[prop] => {
+        let node = prop.node;
+        if let Node::Get(n, v) = node {
+        Expr {
+          span: span!(),
+          node: Node::Get(obj, [vec![n], v].concat())
+        } } else { panic!("invalid get accessor")}
+    },
+
+      Ident(obj) Dot Ident(prop) => Expr {
+        span: span!(),
+        node: Node::Get(obj, vec![prop])
+      }
     }
 
     list: Expr {
@@ -94,7 +112,7 @@ parser! {
         span: span!(),
         node: Node::Le(Box::new(lhs), Box::new(rhs)),
       },
-        term[x] => x
+      term[x] => x
     }
 
     term: Expr {

@@ -1,5 +1,5 @@
 #![allow(unused_braces)]
-#![feature(proc_macro_hygiene)]
+#![feature(proc_macro_hygiene, iter_next_chunk)]
 use interpreter::interp;
 use lexer::Lexer;
 use parser::parse;
@@ -12,10 +12,11 @@ pub mod interpreter;
 
 fn main() {
     // std::env::set_var("RUST_BACKTRACE", "1");
-    let s = "env obj; obj.a = 1; obj.a.b = 2; print obj.a.b;".to_owned();
+    let s = "0u8 == 0u16;".to_owned();
     println!("running \"{s}\"");
     let lexer = Lexer::new(&s);
-    let prog = parse(lexer).unwrap();
-    interp(&prog);
-}
+    let mut prog = parse(lexer).unwrap();
+    interp(&mut prog);
 
+    
+}

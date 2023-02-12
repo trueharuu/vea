@@ -1,3 +1,5 @@
+use crate::lexer::Integer;
+
 #[derive(Debug, Clone)]
 pub enum Token {
     Ident(String), // abc
@@ -7,7 +9,7 @@ pub enum Token {
     Env, // env a
     Fn, // fn
 
-    Integer(i64), // 123
+    Integer(Integer), // 123
     String(String), // "abc"
     True, // true
     False, // false

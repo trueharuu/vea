@@ -1,13 +1,12 @@
 use crate::ast::*;
 use std::{collections::HashMap};
 
-pub fn interp<'a>(p: &'a mut Program) {
-    let mut env = HashMap::new();
+pub fn interp<'a>(p: &'a mut Program, env: &mut HashMap<String, Literal>) {
     for expr in &mut p.stmts {
-        interp_expr(&mut env, expr);
+        interp_expr(env, expr);
     }
 }
-fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Literal {
+fn interp_expr<'a>(env: &mut HashMap<String, Literal>, expr: &'a Expr) -> Literal {
     use crate::ast::Node::{
         Add,
         Assign,
@@ -29,6 +28,7 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
         Get,
         InnerEnv,
         List,
+        If,
     };
     // println!("{expr:#?}");
     match &expr.node {
@@ -38,7 +38,7 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
         Div(ref a, ref b) => interp_expr(env, a) / interp_expr(env, b),
         Assign(ref var, ref b) => {
             let val = interp_expr(env, b);
-            env.insert(var, val.clone());
+            env.insert(var.to_owned(), val.clone());
             val
         }
         Var(ref var) =>
@@ -49,7 +49,7 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
         Node::Literal(ref lit) => lit.clone(),
         Print(ref e) => {
             let val = interp_expr(env, e);
-            println!("{}", val);
+            println!("{:?}", val);
             val
         }
         Typeof(ref e) => {
@@ -65,7 +65,7 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
         Le(ref a, ref b) => Literal::Boolean(interp_expr(env, a) <= interp_expr(env, b)),
         Env(ref var) => {
             // let val = Literal::Object(HashMap::new());
-            env.insert(var, Literal::Object(HashMap::new()));
+            env.insert(var.to_owned(), Literal::Object(HashMap::new()));
             Literal::Never
         }
         InnerEnv(ref o) => {
@@ -130,6 +130,18 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
 
 
             Literal::Array(value)
+        }
+
+        If(ref e, ref s, ref otherwise) => {
+            let bool = interp_expr(env, e);
+
+            if *bool.assert_bool() {
+                interp(&mut Program { stmts: s.clone() }, env);
+            } else if let Some(o) = otherwise {
+                interp(&mut Program { stmts: o.clone() }, env);
+            }
+
+            Literal::Never
         }
     }
 }

@@ -13,9 +13,11 @@ lexer! {
     r#"print"# => Token::Print,
     r#"typeof"# => Token::Typeof,
 
+    r#"if"# => Token::If,
+    r#"else"# => Token::Else,
+
     r#"[0-9]+([ui](8|16|32|64|128|size))?"# => {
       let mut parts = text.split_inclusive(&['i', 'u']);
-        dbg!(parts.clone().collect::<Vec<_>>());
       let [mut value, ty] = [parts.next().unwrap(), parts.next().unwrap_or("")];
       let typ = if value.ends_with(&['i', 'u']) {
           let last = &value[value.len() - 1..];
@@ -54,7 +56,7 @@ lexer! {
 
     r#","# => Token::Comma,
     
-    r#"\".*\""# => 
+    r#"\"[^\n]*\""# => 
         Token::String(text[1..(text.len() - 1)].to_owned()),
     r#"env"# => Token::Env,
 

@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::token::Token::{self,*};
+use crate::token::Token::{ self, * };
 use crate::lexer::Span;
 use plex::parser;
 parser! {
@@ -14,12 +14,28 @@ parser! {
         statements[s] => Program { stmts: s }
     }
 
+    
     statements: Vec<Expr> {
-        => vec![],
-        statements[mut st] assign[e] Semi => {
-            st.push(e);
-            st
-        }
+      => vec![],
+      statements[mut st] if_statement[e] Semi => {
+        st.push(e);
+        st
+      }
+    }
+
+    if_statement: Expr {
+      // if ( assign[a] ) { statements[s] } else { statements[r] }
+      If LeftParen assign[a] RightParen LeftBrace statements[s] RightBrace Else LeftBrace statements[r] RightBrace => Expr {
+        span: span!(),
+        node: Node::If(Box::new(a), s, Some(r))
+      },
+
+      // If LeftParen assign[a] RightParen LeftBrace statements[s] RightBrace => Expr {
+      //   span: span!(),
+      //   node: Node::If(Box::new(a), s, None)
+      // },
+
+      assign[a] => a
     }
 
     assign: Expr {

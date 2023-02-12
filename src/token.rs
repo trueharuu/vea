@@ -34,11 +34,14 @@ pub enum Token {
     Eq, // ==
     Ne, // !=
 
+    If, // if
+    Else, // else
+
     Whitespace,
     Comment,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Debug, Eq, PartialOrd, Ord)]
 pub enum Integer {
     I8(i8),
     I16(i16),

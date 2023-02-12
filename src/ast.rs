@@ -1,4 +1,4 @@
-use std::{ fmt::Display, collections::HashMap, ops::{ Add, Sub, Mul, Div } };
+use std::{ fmt::{ Display, Debug }, collections::HashMap, ops::{ Add, Sub, Mul, Div } };
 
 use crate::{ lexer::Span, token::Integer, b };
 
@@ -38,9 +38,11 @@ pub enum Node {
     Get(String, Vec<String>),
 
     List(b![Expr]),
+
+    If(b![Expr], Vec<Expr>, Option<Vec<Expr>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Literal {
     Integer(Integer),
     String(String),
@@ -61,6 +63,11 @@ impl Literal {
     pub fn assert_object(&self) -> &HashMap<String, Literal> {
         if let Self::Object(v) = self { v } else { panic!("assertion failed: typeof x == object") }
     }
+
+    pub fn assert_bool(&self) -> &bool {
+        if let Self::Boolean(b) = self { b } else { panic!("assertion failed: typeof x == bool") }
+    }
+
     pub fn type_of(&self) -> String {
         match self {
             Self::Boolean(_) => "bool".to_owned(),
@@ -112,16 +119,38 @@ impl Literal {
     }
 }
 
-impl Display for Literal {
+impl Debug for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            Self::Boolean(b) => b.to_string(),
-            Self::String(s) => s.to_string(),
-            Self::Array(a) => format!("{a:?}"),
-            Self::Object(o) => format!("{o:?}"),
-            Self::Never => "None".to_string(),
-            i => i.to_string(),
-        })
+        match self {
+            Self::Array(a) => { f.debug_list().entries(a).finish() }
+            Self::Boolean(b) => { write!(f, "{b}") }
+            Self::Integer(i) => { write!(f, "{i}") }
+            Self::Never => { write!(f, "never") }
+            Self::Object(o) => { f.debug_map().entries(o).finish() }
+            Self::Set(a) => { f.debug_set().entries(a).finish() }
+            Self::String(s) => write!(f, "{s}"),
+
+            // _ => todo!(),
+        }
+    }
+}
+
+impl Display for Integer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::I8(i) => write!(f, "{i}"),
+            Self::I16(i) => write!(f, "{i}"),
+            Self::I32(i) => write!(f, "{i}"),
+            Self::I64(i) => write!(f, "{i}"),
+            Self::I128(i) => write!(f, "{i}"),
+            Self::ISize(i) => write!(f, "{i}"),
+            Self::U8(i) => write!(f, "{i}"),
+            Self::U16(i) => write!(f, "{i}"),
+            Self::U32(i) => write!(f, "{i}"),
+            Self::U64(i) => write!(f, "{i}"),
+            Self::U128(i) => write!(f, "{i}"),
+            Self::USize(i) => write!(f, "{i}"),
+        }
     }
 }
 

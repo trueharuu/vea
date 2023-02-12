@@ -66,7 +66,7 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
         Env(ref var) => {
             // let val = Literal::Object(HashMap::new());
             env.insert(var, Literal::Object(HashMap::new()));
-            Literal::None
+            Literal::Never
         }
         InnerEnv(ref o) => {
             if let Get(obj, prop) = &o.node {
@@ -83,7 +83,7 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
                 }
             }
 
-            Literal::None
+            Literal::Never
         }
 
         Set(ref o, ref value) => {
@@ -96,7 +96,7 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
                         v = if let Some(s) = p.get_mut(i) {
                             s
                         } else {
-                            return Literal::None;
+                            return Literal::Never;
                         };
                     }
                 }
@@ -106,14 +106,14 @@ fn interp_expr<'a>(env: &mut HashMap<&'a str, Literal>, expr: &'a Expr) -> Liter
                 }
             }
 
-            Literal::None
+            Literal::Never
         }
 
         Get(ref obj, ref prop) => {
             let mut v = env.get(obj.as_str()).unwrap();
 
             for i in prop {
-                v = v.assert_object().get(i).unwrap_or(&Literal::None);
+                v = v.assert_object().get(i).unwrap_or(&Literal::Never);
             }
 
             v.clone()

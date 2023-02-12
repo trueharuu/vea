@@ -169,7 +169,7 @@ parser! {
         },
         Bang => Expr {
           span: span!(),
-          node: Node::Literal(Literal::None)
+          node: Node::Literal(Literal::Never)
         },
         LeftParen assign[a] RightParen => a,
     }

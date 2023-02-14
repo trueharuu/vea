@@ -1,6 +1,6 @@
 use crate::ast::*;
-use crate::token::Token::{ self, * };
 use crate::lexer::Span;
+use crate::token::Token::{ self, * };
 use plex::parser;
 parser! {
     fn parse_(Token, Span);
@@ -14,7 +14,7 @@ parser! {
         statements[s] => Program { stmts: s }
     }
 
-    
+
     statements: Vec<Expr> {
       => vec![],
       statements[mut st] if_statement[e] Semi => {
@@ -30,11 +30,20 @@ parser! {
         node: Node::If(Box::new(a), s, Some(r))
       },
 
-      // If LeftParen assign[a] RightParen LeftBrace statements[s] RightBrace => Expr {
-      //   span: span!(),
-      //   node: Node::If(Box::new(a), s, None)
-      // },
+      If LeftParen assign[a] RightParen LeftBrace statements[s] RightBrace => Expr {
+        span: span!(),
+        node: Node::If(Box::new(a), s, None)
+      },
 
+      while_statement[w] => w,
+    }
+
+    while_statement: Expr {
+      While LeftParen assign[a] RightParen LeftBrace statements[s] RightBrace => Expr {
+        span: span!(),
+        node: Node::While(Box::new(a), s)
+      },
+      
       assign[a] => a
     }
 
@@ -66,8 +75,6 @@ parser! {
           span: span!(),
           node: Node::Set(Box::new(g), Box::new(rhs))
         },
-
-        get[t] => t,
 
         // Fn Ident(name) LeftParen list[a] RightParen LeftBrace statements[s] RightBrace => Expr {
         //   span: span!(),
@@ -108,7 +115,7 @@ parser! {
       cmp[lhs] => lhs
     }
 
-    
+
     cmp: Expr {
       term[lhs] Eq term[rhs] => Expr {
         span: span!(),
@@ -150,15 +157,27 @@ parser! {
     }
 
     fact: Expr {
-        fact[lhs] Star atom[rhs] => Expr {
+        fact[lhs] Star mono[rhs] => Expr {
             span: span!(),
             node: Node::Mul(Box::new(lhs), Box::new(rhs)),
         },
-        fact[lhs] Slash atom[rhs] => Expr {
+        fact[lhs] Slash mono[rhs] => Expr {
             span: span!(),
             node: Node::Div(Box::new(lhs), Box::new(rhs)),
         },
-        atom[x] => x
+        fact[lhs] Percent mono[rhs] => Expr {
+          span: span!(),
+          node: Node::Rem(Box::new(lhs), Box::new(rhs)),
+        },
+        mono[x] => x
+    }
+
+    mono: Expr {
+      Bang mono[rhs] => Expr {
+        span: span!(),
+        node: Node::Not(Box::new(rhs))
+      },
+      atom[x] => x
     }
 
     atom: Expr {
@@ -167,6 +186,8 @@ parser! {
             span: span!(),
             node: Node::Var(i),
         },
+
+        get[t] => t,
         Integer(i) => Expr {
             span: span!(),
             node: Node::Literal(Literal::Integer(i)),

@@ -1,5 +1,8 @@
 use std::{
-    ops::{ Index, IndexMut, Deref, DerefMut, Add, Sub, Mul, Div, Rem, BitAnd, BitOr, BitXor, Shl, Shr, Not },
+    ops::{
+        Add, BitAnd, BitOr, BitXor, Deref, DerefMut, Div, Index, IndexMut, Mul, Not, Rem, Shl, Shr,
+        Sub,
+    },
     slice::SliceIndex,
 };
 
@@ -53,14 +56,20 @@ impl U8x4 {
     }
 }
 
-impl<Idx> Index<Idx> for U8x4 where Idx: SliceIndex<[u8]> {
+impl<Idx> Index<Idx> for U8x4
+where
+    Idx: SliceIndex<[u8]>,
+{
     type Output = Idx::Output;
     fn index(&self, index: Idx) -> &Self::Output {
         &self.0[index]
     }
 }
 
-impl<Idx> IndexMut<Idx> for U8x4 where Idx: SliceIndex<[u8]> {
+impl<Idx> IndexMut<Idx> for U8x4
+where
+    Idx: SliceIndex<[u8]>,
+{
     fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
         &mut self.0[index]
     }

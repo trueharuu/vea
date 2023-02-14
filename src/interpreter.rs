@@ -1,5 +1,5 @@
 use crate::ast::*;
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 pub fn interp<'a>(p: &'a mut Program, env: &mut HashMap<String, Literal>) {
     for expr in &mut p.stmts {
@@ -11,24 +11,27 @@ fn interp_expr<'a>(env: &mut HashMap<String, Literal>, expr: &'a Expr) -> Litera
         Add,
         Assign,
         Div,
+        Env,
         Eq,
         Ge,
+        Get,
         Gt,
+        If,
+        InnerEnv,
         Le,
+        List,
         Lt,
         Mul,
         Ne,
+        Not,
         Pair,
         Print,
+        Rem,
+        Set,
         Sub,
         Typeof,
         Var,
-        Env,
-        Set,
-        Get,
-        InnerEnv,
-        List,
-        If,
+        While,
     };
     // println!("{expr:#?}");
     match &expr.node {
@@ -117,28 +120,40 @@ fn interp_expr<'a>(env: &mut HashMap<String, Literal>, expr: &'a Expr) -> Litera
             }
 
             v.clone()
-        },
+        }
 
         List(ref e) => {
             let mut value = Vec::new();
             let mut node = &e.node;
-            
+
             while let Pair(a, b) = node {
                 value.push(interp_expr(env, a));
                 node = &b.node;
             }
 
-
             Literal::Array(value)
         }
 
         If(ref e, ref s, ref otherwise) => {
-            let bool = interp_expr(env, e);
+            let bool = *interp_expr(env, e).assert_bool();
 
-            if *bool.assert_bool() {
-                interp(&mut Program { stmts: s.clone() }, env);
+            if bool {
+                interp(&mut (Program { stmts: s.clone() }), env);
             } else if let Some(o) = otherwise {
-                interp(&mut Program { stmts: o.clone() }, env);
+                interp(&mut (Program { stmts: o.clone() }), env);
+            }
+
+            Literal::Never
+        }
+
+        Not(ref e) => Literal::Boolean(!interp_expr(env, e).assert_bool()),
+        Rem(ref lhs, ref rhs) => interp_expr(env, lhs) % interp_expr(env, rhs),
+
+        While(ref e, ref s) => {
+            let bool = *interp_expr(env, e).assert_bool();
+
+            while bool {
+                interp(&mut (Program { stmts: s.clone() }), env);
             }
 
             Literal::Never

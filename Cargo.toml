@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 plex = "0.2.5"
+either = "1.8.1"

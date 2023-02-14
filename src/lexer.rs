@@ -1,5 +1,5 @@
+use crate::token::{Integer, Token};
 use plex::lexer;
-use crate::token::{ Token, Integer };
 
 lexer! {
     fn next_token(text: 'a) -> Token;
@@ -15,6 +15,7 @@ lexer! {
 
     r#"if"# => Token::If,
     r#"else"# => Token::Else,
+    r#"while"# => Token::While,
 
     r#"[0-9]+([ui](8|16|32|64|128|size))?"# => {
       let mut parts = text.split_inclusive(&['i', 'u']);
@@ -26,7 +27,7 @@ lexer! {
       } else {
         ty.to_owned()
       };
-  
+
       match typ.as_str() {
         "i8" => Token::Integer(Integer::I8(value.parse::<i8>().unwrap())),
         "i16" => Token::Integer(Integer::I16(value.parse::<i16>().unwrap())),
@@ -55,8 +56,8 @@ lexer! {
     r#"false"# => Token::False,
 
     r#","# => Token::Comma,
-    
-    r#"\"[^\n]*\""# => 
+
+    r#"\"[^\n]*\""# =>
         Token::String(text[1..(text.len() - 1)].to_owned()),
     r#"env"# => Token::Env,
 
@@ -71,13 +72,14 @@ lexer! {
     r#"\)"# => Token::RightParen,
     r#";"# => Token::Semi,
     r#"!"# => Token::Bang,
-    
+    r#"%"# => Token::Percent,
+
     r#">"# => Token::Gt,
     r#"<"# => Token::Lt,
-    
+
     r#">="# => Token::Ge,
     r#"<="# => Token::Le,
-    
+
     r#"=="# => Token::Eq,
     r#"!="# => Token::Ne,
 

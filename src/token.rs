@@ -3,42 +3,44 @@ pub enum Token {
     Ident(String), // abc
 
     Typeof, // typeof a
-    Print, // print a
-    Env, // env a
-    Fn, // fn
+    Print,  // print a
+    Env,    // env a
+    Fn,     // fn
 
     Integer(Integer), // 123
-    String(String), // "abc"
-    True, // true
-    False, // false
+    String(String),   // "abc"
+    True,             // true
+    False,            // false
 
-    Equals, // =
-    Plus, // +
-    Minus, // -
-    Star, // *
-    Slash, // /
-    Bang, // !
-    LeftParen, // (
-    RightParen, // )
-    LeftBracket, // [
+    Equals,       // =
+    Plus,         // +
+    Minus,        // -
+    Star,         // *
+    Slash,        // /
+    Bang,         // !
+    Percent,      // %
+    LeftParen,    // (
+    RightParen,   // )
+    LeftBracket,  // [
     RightBracket, // ]
     LeftBrace,
     RightBrace,
     Comma, // ,
-    Dot, // .
-    Semi, // ;
-    Gt, // >
-    Ge, // >=
-    Lt, // <
-    Le, // <=
-    Eq, // ==
-    Ne, // !=
+    Dot,   // .
+    Semi,  // ;
+    Gt,    // >
+    Ge,    // >=
+    Lt,    // <
+    Le,    // <=
+    Eq,    // ==
+    Ne,    // !=
 
-    If, // if
-    Else, // else
+    If,    // if
+    Else,  // else
+    While, // while
 
-    Whitespace,
-    Comment,
+    Whitespace, //
+    Comment,    // // hi
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq, PartialOrd, Ord)]

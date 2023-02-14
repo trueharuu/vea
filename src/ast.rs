@@ -1,6 +1,6 @@
-use std::{ fmt::{ Display, Debug }, collections::HashMap, ops::{ Add, Sub, Mul, Div } };
+use std::{ collections::HashMap, fmt::{ Debug, Display }, ops::{ Add, Div, Mul, Rem, Sub } };
 
-use crate::{ lexer::Span, token::Integer, b };
+use crate::{ b, lexer::Span, token::Integer };
 
 #[derive(Debug, Clone)]
 pub struct Program {
@@ -19,6 +19,7 @@ pub enum Node {
     Sub(b![Expr], b![Expr]),
     Mul(b![Expr], b![Expr]),
     Div(b![Expr], b![Expr]),
+    Rem(b![Expr], b![Expr]),
     Pair(b![Expr], b![Expr]),
     Eq(b![Expr], b![Expr]),
     Ne(b![Expr], b![Expr]),
@@ -26,6 +27,8 @@ pub enum Node {
     Lt(b![Expr], b![Expr]),
     Ge(b![Expr], b![Expr]),
     Le(b![Expr], b![Expr]),
+
+    Not(b![Expr]),
 
     Var(String),
     Assign(String, b![Expr]),
@@ -40,6 +43,7 @@ pub enum Node {
     List(b![Expr]),
 
     If(b![Expr], Vec<Expr>, Option<Vec<Expr>>),
+    While(b![Expr], Vec<Expr>),
 }
 
 #[derive(Clone)]
@@ -122,14 +126,13 @@ impl Literal {
 impl Debug for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Array(a) => { f.debug_list().entries(a).finish() }
+            Self::Array(a) => f.debug_list().entries(a).finish(),
             Self::Boolean(b) => { write!(f, "{b}") }
             Self::Integer(i) => { write!(f, "{i}") }
             Self::Never => { write!(f, "never") }
-            Self::Object(o) => { f.debug_map().entries(o).finish() }
-            Self::Set(a) => { f.debug_set().entries(a).finish() }
+            Self::Object(o) => f.debug_map().entries(o).finish(),
+            Self::Set(a) => f.debug_set().entries(a).finish(),
             Self::String(s) => write!(f, "{s}"),
-
             // _ => todo!(),
         }
     }
@@ -186,15 +189,17 @@ impl PartialOrd for Literal {
             (Self::Integer(Integer::I32(l)), Self::Integer(Integer::I32(r))) => l.partial_cmp(r),
             (Self::Integer(Integer::I64(l)), Self::Integer(Integer::I64(r))) => l.partial_cmp(r),
             (Self::Integer(Integer::I128(l)), Self::Integer(Integer::I128(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::ISize(l)), Self::Integer(Integer::ISize(r))) =>
-                l.partial_cmp(r),
+            (Self::Integer(Integer::ISize(l)), Self::Integer(Integer::ISize(r))) => {
+                l.partial_cmp(r)
+            }
             (Self::Integer(Integer::U8(l)), Self::Integer(Integer::U8(r))) => l.partial_cmp(r),
             (Self::Integer(Integer::U16(l)), Self::Integer(Integer::U16(r))) => l.partial_cmp(r),
             (Self::Integer(Integer::U32(l)), Self::Integer(Integer::U32(r))) => l.partial_cmp(r),
             (Self::Integer(Integer::U64(l)), Self::Integer(Integer::U64(r))) => l.partial_cmp(r),
             (Self::Integer(Integer::U128(l)), Self::Integer(Integer::U128(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::USize(l)), Self::Integer(Integer::USize(r))) =>
-                l.partial_cmp(r),
+            (Self::Integer(Integer::USize(l)), Self::Integer(Integer::USize(r))) => {
+                l.partial_cmp(r)
+            }
             (_, _) => None,
         }
     }
@@ -205,30 +210,7 @@ impl Add for Literal {
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Self::Array(v), Self::Array(b)) => Self::Array(vec![v, b].concat()),
-            (Self::Integer(Integer::I8(l)), Self::Integer(Integer::I8(r))) =>
-                Self::Integer(Integer::I8(l + r)),
-            (Self::Integer(Integer::I16(l)), Self::Integer(Integer::I16(r))) =>
-                Self::Integer(Integer::I16(l + r)),
-            (Self::Integer(Integer::I32(l)), Self::Integer(Integer::I32(r))) =>
-                Self::Integer(Integer::I32(l + r)),
-            (Self::Integer(Integer::I64(l)), Self::Integer(Integer::I64(r))) =>
-                Self::Integer(Integer::I64(l + r)),
-            (Self::Integer(Integer::I128(l)), Self::Integer(Integer::I128(r))) =>
-                Self::Integer(Integer::I128(l + r)),
-            (Self::Integer(Integer::ISize(l)), Self::Integer(Integer::ISize(r))) =>
-                Self::Integer(Integer::ISize(l + r)),
-            (Self::Integer(Integer::U8(l)), Self::Integer(Integer::U8(r))) =>
-                Self::Integer(Integer::U8(l + r)),
-            (Self::Integer(Integer::U16(l)), Self::Integer(Integer::U16(r))) =>
-                Self::Integer(Integer::U16(l + r)),
-            (Self::Integer(Integer::U32(l)), Self::Integer(Integer::U32(r))) =>
-                Self::Integer(Integer::U32(l + r)),
-            (Self::Integer(Integer::U64(l)), Self::Integer(Integer::U64(r))) =>
-                Self::Integer(Integer::U64(l + r)),
-            (Self::Integer(Integer::U128(l)), Self::Integer(Integer::U128(r))) =>
-                Self::Integer(Integer::U128(l + r)),
-            (Self::Integer(Integer::USize(l)), Self::Integer(Integer::USize(r))) =>
-                Self::Integer(Integer::USize(l + r)),
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l + r),
             (Self::String(l), Self::String(r)) => Self::String(l + r.as_str()),
             (i, o) =>
                 panic!(
@@ -244,30 +226,7 @@ impl Sub for Literal {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Self::Integer(Integer::I8(l)), Self::Integer(Integer::I8(r))) =>
-                Self::Integer(Integer::I8(l - r)),
-            (Self::Integer(Integer::I16(l)), Self::Integer(Integer::I16(r))) =>
-                Self::Integer(Integer::I16(l - r)),
-            (Self::Integer(Integer::I32(l)), Self::Integer(Integer::I32(r))) =>
-                Self::Integer(Integer::I32(l - r)),
-            (Self::Integer(Integer::I64(l)), Self::Integer(Integer::I64(r))) =>
-                Self::Integer(Integer::I64(l - r)),
-            (Self::Integer(Integer::I128(l)), Self::Integer(Integer::I128(r))) =>
-                Self::Integer(Integer::I128(l - r)),
-            (Self::Integer(Integer::ISize(l)), Self::Integer(Integer::ISize(r))) =>
-                Self::Integer(Integer::ISize(l - r)),
-            (Self::Integer(Integer::U8(l)), Self::Integer(Integer::U8(r))) =>
-                Self::Integer(Integer::U8(l - r)),
-            (Self::Integer(Integer::U16(l)), Self::Integer(Integer::U16(r))) =>
-                Self::Integer(Integer::U16(l - r)),
-            (Self::Integer(Integer::U32(l)), Self::Integer(Integer::U32(r))) =>
-                Self::Integer(Integer::U32(l - r)),
-            (Self::Integer(Integer::U64(l)), Self::Integer(Integer::U64(r))) =>
-                Self::Integer(Integer::U64(l - r)),
-            (Self::Integer(Integer::U128(l)), Self::Integer(Integer::U128(r))) =>
-                Self::Integer(Integer::U128(l - r)),
-            (Self::Integer(Integer::USize(l)), Self::Integer(Integer::USize(r))) =>
-                Self::Integer(Integer::USize(l - r)),
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l - r),
             (i, o) =>
                 panic!(
                     "operation `{0} - {1}` failed: Sub({1}) not implemented for {0}",
@@ -282,30 +241,7 @@ impl Mul for Literal {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Self::Integer(Integer::I8(l)), Self::Integer(Integer::I8(r))) =>
-                Self::Integer(Integer::I8(l * r)),
-            (Self::Integer(Integer::I16(l)), Self::Integer(Integer::I16(r))) =>
-                Self::Integer(Integer::I16(l * r)),
-            (Self::Integer(Integer::I32(l)), Self::Integer(Integer::I32(r))) =>
-                Self::Integer(Integer::I32(l * r)),
-            (Self::Integer(Integer::I64(l)), Self::Integer(Integer::I64(r))) =>
-                Self::Integer(Integer::I64(l * r)),
-            (Self::Integer(Integer::I128(l)), Self::Integer(Integer::I128(r))) =>
-                Self::Integer(Integer::I128(l * r)),
-            (Self::Integer(Integer::ISize(l)), Self::Integer(Integer::ISize(r))) =>
-                Self::Integer(Integer::ISize(l * r)),
-            (Self::Integer(Integer::U8(l)), Self::Integer(Integer::U8(r))) =>
-                Self::Integer(Integer::U8(l * r)),
-            (Self::Integer(Integer::U16(l)), Self::Integer(Integer::U16(r))) =>
-                Self::Integer(Integer::U16(l * r)),
-            (Self::Integer(Integer::U32(l)), Self::Integer(Integer::U32(r))) =>
-                Self::Integer(Integer::U32(l * r)),
-            (Self::Integer(Integer::U64(l)), Self::Integer(Integer::U64(r))) =>
-                Self::Integer(Integer::U64(l * r)),
-            (Self::Integer(Integer::U128(l)), Self::Integer(Integer::U128(r))) =>
-                Self::Integer(Integer::U128(l * r)),
-            (Self::Integer(Integer::USize(l)), Self::Integer(Integer::USize(r))) =>
-                Self::Integer(Integer::USize(l * r)),
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l * r),
             (i, o) =>
                 panic!(
                     "operation `{0} * {1}` failed: Mul({1}) not implemented for {0}",
@@ -315,34 +251,12 @@ impl Mul for Literal {
         }
     }
 }
+
 impl Div for Literal {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Self::Integer(Integer::I8(l)), Self::Integer(Integer::I8(r))) =>
-                Self::Integer(Integer::I8(l / r)),
-            (Self::Integer(Integer::I16(l)), Self::Integer(Integer::I16(r))) =>
-                Self::Integer(Integer::I16(l / r)),
-            (Self::Integer(Integer::I32(l)), Self::Integer(Integer::I32(r))) =>
-                Self::Integer(Integer::I32(l / r)),
-            (Self::Integer(Integer::I64(l)), Self::Integer(Integer::I64(r))) =>
-                Self::Integer(Integer::I64(l / r)),
-            (Self::Integer(Integer::I128(l)), Self::Integer(Integer::I128(r))) =>
-                Self::Integer(Integer::I128(l / r)),
-            (Self::Integer(Integer::ISize(l)), Self::Integer(Integer::ISize(r))) =>
-                Self::Integer(Integer::ISize(l / r)),
-            (Self::Integer(Integer::U8(l)), Self::Integer(Integer::U8(r))) =>
-                Self::Integer(Integer::U8(l / r)),
-            (Self::Integer(Integer::U16(l)), Self::Integer(Integer::U16(r))) =>
-                Self::Integer(Integer::U16(l / r)),
-            (Self::Integer(Integer::U32(l)), Self::Integer(Integer::U32(r))) =>
-                Self::Integer(Integer::U32(l / r)),
-            (Self::Integer(Integer::U64(l)), Self::Integer(Integer::U64(r))) =>
-                Self::Integer(Integer::U64(l / r)),
-            (Self::Integer(Integer::U128(l)), Self::Integer(Integer::U128(r))) =>
-                Self::Integer(Integer::U128(l / r)),
-            (Self::Integer(Integer::USize(l)), Self::Integer(Integer::USize(r))) =>
-                Self::Integer(Integer::USize(l / r)),
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l / r),
             (i, o) =>
                 panic!(
                     "operation `{0} / {1}` failed: Div({1}) not implemented for {0}",
@@ -352,3 +266,49 @@ impl Div for Literal {
         }
     }
 }
+
+impl Rem for Literal {
+    type Output = Self;
+    fn rem(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l / r),
+            (i, o) =>
+                panic!(
+                    "operation `{0} % {1}` failed: Rem({1}) not implemented for {0}",
+                    i.type_of(),
+                    o.type_of()
+                ),
+        }
+    }
+}
+
+macro_rules! impl_all_ints {
+    ($trait:ident, $fn:ident) => {
+        impl $trait for Integer {
+            type Output = Self;
+            fn $fn(self, rhs: Integer) -> Self::Output {
+                match (self, rhs) {
+                    (Self::I8(i), Self::I8(r)) => Self::I8($trait::$fn(i, r)),
+                    (Self::I16(i), Self::I16(r)) => Self::I16($trait::$fn(i, r)),
+                    (Self::I32(i), Self::I32(r)) => Self::I32($trait::$fn(i, r)),
+                    (Self::I64(i), Self::I64(r)) => Self::I64($trait::$fn(i, r)),
+                    (Self::I128(i), Self::I128(r)) => Self::I128($trait::$fn(i, r)),
+                    (Self::ISize(i), Self::ISize(r)) => Self::ISize($trait::$fn(i, r)),
+                    (Self::U8(i), Self::U8(r)) => Self::U8($trait::$fn(i, r)),
+                    (Self::U16(i), Self::U16(r)) => Self::U16($trait::$fn(i, r)),
+                    (Self::U32(i), Self::U32(r)) => Self::U32($trait::$fn(i, r)),
+                    (Self::U64(i), Self::U64(r)) => Self::U64($trait::$fn(i, r)),
+                    (Self::U128(i), Self::U128(r)) => Self::U128($trait::$fn(i, r)),
+                    (Self::USize(i), Self::USize(r)) => Self::USize($trait::$fn(i, r)),
+                    (i, r) => panic!("impl `{}` does not exist for {i} {r}", stringify!($trait)),
+                }
+            }
+        }
+    };
+}
+
+impl_all_ints!(Add, add);
+impl_all_ints!(Sub, sub);
+impl_all_ints!(Mul, mul);
+impl_all_ints!(Div, div);
+impl_all_ints!(Rem, rem);

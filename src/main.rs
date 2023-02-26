@@ -21,13 +21,6 @@ use serenity::model::prelude::Message;
 use serenity::prelude::*;
 use serenity::{async_trait, framework::standard::macros::command};
 
-pub mod ast;
-pub mod interpreter;
-pub mod lexer;
-pub mod parser;
-pub mod token;
-pub mod tools;
-
 #[group]
 #[commands(eval)]
 struct General;
@@ -44,7 +37,7 @@ async fn main() {
         .group(&GENERAL_GROUP);
 
     // Login with a bot token from the environment
-    let token = "NzYwMTQzNjE1MTI0NDM5MDQw.Gv5Sqp.-Ff1jKvi8uG-8m_5mkJj50waVOXMeK25r1rM2I";
+    let token = std::env::var("TOKEN").unwrap();
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
     let mut client = Client::builder(token, intents)
         .event_handler(Handler)

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::token::{Integer, Token};
 use plex::lexer;
 
@@ -11,7 +13,9 @@ lexer! {
     r#"//[^\n]*"# => Token::Comment,
 
     r#"print"# => Token::Print,
+    r#"fn"# => Token::Fn,
     r#"typeof"# => Token::Typeof,
+    r#"throw"# => Token::Throw,
 
     r#"if"# => Token::If,
     r#"else"# => Token::Else,
@@ -57,11 +61,12 @@ lexer! {
 
     r#","# => Token::Comma,
 
-    r#"\"[^\n]*\""# =>
+    r#"\"[^\n"]*\""# =>
         Token::String(text[1..(text.len() - 1)].to_owned()),
     r#"env"# => Token::Env,
 
     r#"[a-zA-Z_][a-zA-Z0-9_]*"# => Token::Ident(text.to_owned()),
+    r#"[a-zA-Z0-9_]+"# => Token::Key(text.to_owned()),
 
     r#"="# => Token::Equals,
     r#"\+"# => Token::Plus,
@@ -102,8 +107,14 @@ impl<'a> Lexer<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct Span(pub usize, pub usize);
+
+impl Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}..{}", self.0, self.1)
+    }
+}
 
 impl<'a> Iterator for Lexer<'a> {
     type Item = (Token, Span);

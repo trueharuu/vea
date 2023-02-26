@@ -1,19 +1,23 @@
-use std::{ collections::HashMap, fmt::{ Debug, Display }, ops::{ Add, Div, Mul, Rem, Sub } };
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    ops::{Add, Div, Mul, Rem, Sub},
+};
 
-use crate::{ b, lexer::Span, token::Integer };
+use crate::{b, lexer::Span, token::Integer};
 
 #[derive(Debug, Clone)]
 pub struct Program {
     pub stmts: Vec<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expr {
     pub span: Span,
     pub node: Node,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
     Add(b![Expr], b![Expr]),
     Sub(b![Expr], b![Expr]),
@@ -34,19 +38,23 @@ pub enum Node {
     Assign(String, b![Expr]),
     Print(b![Expr]),
     Typeof(b![Expr]),
+    Throw(b![Expr]),
     Literal(Literal),
     Env(String),
     InnerEnv(b![Expr]),
     Set(b![Expr], b![Expr]),
     Get(String, Vec<String>),
+    Call(b![Expr], b![Expr]),
 
-    List(b![Expr]),
+    Array(Option<b![Expr]>),
+    List(Option<b![Expr]>),
 
     If(b![Expr], Vec<Expr>, Option<Vec<Expr>>),
+    Fn(String, b![Expr], Vec<Expr>),
     While(b![Expr], Vec<Expr>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq)]
 pub enum Literal {
     Integer(Integer),
     String(String),
@@ -54,6 +62,7 @@ pub enum Literal {
     Array(Vec<Literal>),
     Set(Vec<Literal>),
     Object(HashMap<String, Literal>),
+    Fn(Vec<String>, Vec<Expr>),
     Never,
 }
 
@@ -65,15 +74,24 @@ impl Default for Literal {
 
 impl Literal {
     pub fn assert_object(&self) -> &HashMap<String, Literal> {
-        if let Self::Object(v) = self { v } else { panic!("assertion failed: typeof x == object") }
+        if let Self::Object(v) = self {
+            v
+        } else {
+            panic!("assertion failed: typeof x == object")
+        }
     }
 
     pub fn assert_bool(&self) -> &bool {
-        if let Self::Boolean(b) = self { b } else { panic!("assertion failed: typeof x == bool") }
+        if let Self::Boolean(b) = self {
+            b
+        } else {
+            panic!("assertion failed: typeof x == bool")
+        }
     }
 
     pub fn type_of(&self) -> String {
         match self {
+            Self::Fn(v, _) => format!("fn({})", v.len()),
             Self::Boolean(_) => "bool".to_owned(),
             Self::Integer(Integer::I8(_)) => "i8".to_owned(),
             Self::Integer(Integer::I16(_)) => "i16".to_owned(),
@@ -126,10 +144,17 @@ impl Literal {
 impl Debug for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Fn(a, _) => write!(f, "fn({})", a.join(", ")),
             Self::Array(a) => f.debug_list().entries(a).finish(),
-            Self::Boolean(b) => { write!(f, "{b}") }
-            Self::Integer(i) => { write!(f, "{i}") }
-            Self::Never => { write!(f, "never") }
+            Self::Boolean(b) => {
+                write!(f, "{b}")
+            }
+            Self::Integer(i) => {
+                write!(f, "{i}")
+            }
+            Self::Never => {
+                write!(f, "!")
+            }
             Self::Object(o) => f.debug_map().entries(o).finish(),
             Self::Set(a) => f.debug_set().entries(a).finish(),
             Self::String(s) => write!(f, "{s}"),
@@ -163,6 +188,8 @@ impl PartialEq for Literal {
             (Self::String(i), Self::String(u)) => i == u,
             (Self::Boolean(i), Self::Boolean(u)) => i == u,
             (Self::Array(i), Self::Array(u)) => i == u,
+            (Self::Set(i), Self::Set(u)) => i == u,
+            (Self::Set(i), u) | (u, Self::Set(i)) => i.contains(u),
             (Self::Never, Self::Never) => true,
             (Self::Integer(Integer::I8(l)), Self::Integer(Integer::I8(r))) => l == r,
             (Self::Integer(Integer::I16(l)), Self::Integer(Integer::I16(r))) => l == r,
@@ -184,22 +211,7 @@ impl PartialEq for Literal {
 impl PartialOrd for Literal {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
-            (Self::Integer(Integer::I8(l)), Self::Integer(Integer::I8(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::I16(l)), Self::Integer(Integer::I16(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::I32(l)), Self::Integer(Integer::I32(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::I64(l)), Self::Integer(Integer::I64(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::I128(l)), Self::Integer(Integer::I128(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::ISize(l)), Self::Integer(Integer::ISize(r))) => {
-                l.partial_cmp(r)
-            }
-            (Self::Integer(Integer::U8(l)), Self::Integer(Integer::U8(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::U16(l)), Self::Integer(Integer::U16(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::U32(l)), Self::Integer(Integer::U32(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::U64(l)), Self::Integer(Integer::U64(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::U128(l)), Self::Integer(Integer::U128(r))) => l.partial_cmp(r),
-            (Self::Integer(Integer::USize(l)), Self::Integer(Integer::USize(r))) => {
-                l.partial_cmp(r)
-            }
+            (Self::Integer(l), Self::Integer(r)) => l.partial_cmp(r),
             (_, _) => None,
         }
     }
@@ -212,12 +224,11 @@ impl Add for Literal {
             (Self::Array(v), Self::Array(b)) => Self::Array(vec![v, b].concat()),
             (Self::Integer(l), Self::Integer(r)) => Self::Integer(l + r),
             (Self::String(l), Self::String(r)) => Self::String(l + r.as_str()),
-            (i, o) =>
-                panic!(
-                    "operation `{0} + {1}` failed: Add({1}) not implemented for {0}",
-                    i.type_of(),
-                    o.type_of()
-                ),
+            (i, o) => panic!(
+                "operation `{0} + {1}` failed: Add({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
         }
     }
 }
@@ -227,12 +238,11 @@ impl Sub for Literal {
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Self::Integer(l), Self::Integer(r)) => Self::Integer(l - r),
-            (i, o) =>
-                panic!(
-                    "operation `{0} - {1}` failed: Sub({1}) not implemented for {0}",
-                    i.type_of(),
-                    o.type_of()
-                ),
+            (i, o) => panic!(
+                "operation `{0} - {1}` failed: Sub({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
         }
     }
 }
@@ -242,12 +252,11 @@ impl Mul for Literal {
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Self::Integer(l), Self::Integer(r)) => Self::Integer(l * r),
-            (i, o) =>
-                panic!(
-                    "operation `{0} * {1}` failed: Mul({1}) not implemented for {0}",
-                    i.type_of(),
-                    o.type_of()
-                ),
+            (i, o) => panic!(
+                "operation `{0} * {1}` failed: Mul({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
         }
     }
 }
@@ -257,12 +266,11 @@ impl Div for Literal {
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Self::Integer(l), Self::Integer(r)) => Self::Integer(l / r),
-            (i, o) =>
-                panic!(
-                    "operation `{0} / {1}` failed: Div({1}) not implemented for {0}",
-                    i.type_of(),
-                    o.type_of()
-                ),
+            (i, o) => panic!(
+                "operation `{0} / {1}` failed: Div({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
         }
     }
 }
@@ -272,12 +280,11 @@ impl Rem for Literal {
     fn rem(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Self::Integer(l), Self::Integer(r)) => Self::Integer(l / r),
-            (i, o) =>
-                panic!(
-                    "operation `{0} % {1}` failed: Rem({1}) not implemented for {0}",
-                    i.type_of(),
-                    o.type_of()
-                ),
+            (i, o) => panic!(
+                "operation `{0} % {1}` failed: Rem({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::lexer::Span;
-use crate::token::Token::{ self, * };
+use crate::token::Token::{self, *};
 use plex::parser;
 parser! {
     fn parse_(Token, Span);
@@ -11,16 +11,25 @@ parser! {
     }
 
     program: Program {
-        statements[s] => Program { stmts: s }
+        statements[s] => Program { stmts: s },
     }
 
 
     statements: Vec<Expr> {
       => vec![],
-      statements[mut st] if_statement[e] Semi => {
+      statements[mut st] fn_decl[e] Semi => {
         st.push(e);
         st
-      }
+      },
+    }
+
+    fn_decl: Expr {
+      Fn Ident(n) LeftParen list[args] RightParen LeftBrace statements[s] RightBrace => Expr {
+        span: span!(),
+        node: Node::Fn(n, Box::new(args), s),
+      },
+
+      if_statement[i] => i,
     }
 
     if_statement: Expr {
@@ -43,7 +52,7 @@ parser! {
         span: span!(),
         node: Node::While(Box::new(a), s)
       },
-      
+
       assign[a] => a
     }
 
@@ -51,6 +60,10 @@ parser! {
         Print assign[a] => Expr {
             span: span!(),
             node: Node::Print(Box::new(a)),
+        },
+        Throw assign[a] => Expr {
+            span: span!(),
+            node: Node::Throw(Box::new(a)),
         },
         Typeof assign[a] => Expr {
             span: span!(),
@@ -76,23 +89,39 @@ parser! {
           node: Node::Set(Box::new(g), Box::new(rhs))
         },
 
-        // Fn Ident(name) LeftParen list[a] RightParen LeftBrace statements[s] RightBrace => Expr {
-        //   span: span!(),
-        //   node: Node::Fn(name, Box::new(a), s)
-        // },
+        call[t] => t,
+    }
 
-        cmp[t] => t,
+    call: Expr {
+       LeftParen list[a] RightParen => Expr {
+        span: span!(),
+        node: Node::Call(Box::new(t), Box::new(a))
+      },
+
+      get[t] => t
     }
 
     get: Expr {
       Ident(obj) Dot get[prop] => {
         let node = prop.node;
+
         if let Node::Get(n, v) = node {
-        Expr {
-          span: span!(),
-          node: Node::Get(obj, [vec![n], v].concat())
-        } } else { panic!("invalid get accessor")}
-    },
+          Expr {
+            span: span!(),
+            node: Node::Get(obj, [vec![n], v].concat())
+          }
+        } else { panic!("invalid get accessor") }
+      },
+
+      Ident(obj) Dot Integer(prop) => Expr {
+        span: span!(),
+        node: Node::Get(obj, vec![prop.to_string()])
+      },
+
+      Ident(obj) Dot Key(prop) => Expr {
+        span: span!(),
+        node: Node::Get(obj, vec![prop])
+      },
 
       Ident(obj) Dot Ident(prop) => Expr {
         span: span!(),
@@ -101,9 +130,25 @@ parser! {
 
       LeftBracket list[l] RightBracket => Expr {
         span: span!(),
-        node: Node::List(Box::new(l)),
+        node: Node::Array(Some(Box::new(l))),
+      },
+
+      LeftBracket RightBracket => Expr {
+        span: span!(),
+        node: Node::Array(None),
+      },
+
+      LeftBrace list[l] RightBrace => Expr {
+        span: span!(),
+        node: Node::List(Some(Box::new(l))),
+      },
+
+      LeftBrace RightBrace => Expr {
+        span: span!(),
+        node: Node::Array(None),
       }
     }
+
 
 
     list: Expr {
@@ -114,7 +159,6 @@ parser! {
 
       cmp[lhs] => lhs
     }
-
 
     cmp: Expr {
       term[lhs] Eq term[rhs] => Expr {
@@ -213,7 +257,7 @@ parser! {
 }
 
 pub fn parse<I: Iterator<Item = (Token, Span)>>(
-    i: I
+    i: I,
 ) -> Result<Program, (Option<(Token, Span)>, &'static str)> {
     parse_(i)
 }

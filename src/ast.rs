@@ -1,0 +1,321 @@
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    ops::{Add, Div, Mul, Rem, Sub},
+};
+
+use crate::{b, lexer::Span, token::Integer};
+
+#[derive(Debug, Clone)]
+pub struct Program {
+    pub stmts: Vec<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Expr {
+    pub span: Span,
+    pub node: Node,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Node {
+    Add(b![Expr], b![Expr]),
+    Sub(b![Expr], b![Expr]),
+    Mul(b![Expr], b![Expr]),
+    Div(b![Expr], b![Expr]),
+    Rem(b![Expr], b![Expr]),
+    Pair(b![Expr], b![Expr]),
+    Eq(b![Expr], b![Expr]),
+    Ne(b![Expr], b![Expr]),
+    Gt(b![Expr], b![Expr]),
+    Lt(b![Expr], b![Expr]),
+    Ge(b![Expr], b![Expr]),
+    Le(b![Expr], b![Expr]),
+
+    Not(b![Expr]),
+
+    Var(String),
+    Assign(String, b![Expr]),
+    Print(b![Expr]),
+    Typeof(b![Expr]),
+    Throw(b![Expr]),
+    Literal(Literal),
+    Env(String),
+    InnerEnv(b![Expr]),
+    Set(b![Expr], b![Expr]),
+    Get(String, Vec<String>),
+    Call(b![Expr], b![Expr]),
+
+    Array(Option<b![Expr]>),
+    List(Option<b![Expr]>),
+
+    If(b![Expr], Vec<Expr>, Option<Vec<Expr>>),
+    Fn(String, b![Expr], Vec<Expr>),
+    While(b![Expr], Vec<Expr>),
+}
+
+#[derive(Clone, Eq)]
+pub enum Literal {
+    Integer(Integer),
+    String(String),
+    Boolean(bool),
+    Array(Vec<Literal>),
+    Set(Vec<Literal>),
+    Object(HashMap<String, Literal>),
+    Fn(Vec<String>, Vec<Expr>),
+    Never,
+}
+
+impl Default for Literal {
+    fn default() -> Self {
+        Self::Never
+    }
+}
+
+impl Literal {
+    pub fn assert_object(&self) -> &HashMap<String, Literal> {
+        if let Self::Object(v) = self {
+            v
+        } else {
+            panic!("assertion failed: typeof x == object")
+        }
+    }
+
+    pub fn assert_bool(&self) -> &bool {
+        if let Self::Boolean(b) = self {
+            b
+        } else {
+            panic!("assertion failed: typeof x == bool")
+        }
+    }
+
+    pub fn type_of(&self) -> String {
+        match self {
+            Self::Fn(v, _) => format!("fn({})", v.len()),
+            Self::Boolean(_) => "bool".to_owned(),
+            Self::Integer(Integer::I8(_)) => "i8".to_owned(),
+            Self::Integer(Integer::I16(_)) => "i16".to_owned(),
+            Self::Integer(Integer::I32(_)) => "i32".to_owned(),
+            Self::Integer(Integer::I64(_)) => "i64".to_owned(),
+            Self::Integer(Integer::I128(_)) => "i128".to_owned(),
+            Self::Integer(Integer::ISize(_)) => "isize".to_owned(),
+            Self::Integer(Integer::U8(_)) => "u8".to_owned(),
+            Self::Integer(Integer::U16(_)) => "u16".to_owned(),
+            Self::Integer(Integer::U32(_)) => "u32".to_owned(),
+            Self::Integer(Integer::U64(_)) => "u64".to_owned(),
+            Self::Integer(Integer::U128(_)) => "u128".to_owned(),
+            Self::Integer(Integer::USize(_)) => "usize".to_owned(),
+            Self::String(_) => "str".to_owned(),
+            Self::Array(v) => {
+                if v.is_empty() {
+                    "Array()".to_owned()
+                } else {
+                    let mut types = Vec::new();
+                    for i in v {
+                        if !types.contains(&i.type_of()) {
+                            types.push(i.type_of());
+                        }
+                    }
+
+                    format!("Array({})", types.join(" | "))
+                }
+            }
+            Self::Set(v) => {
+                if v.is_empty() {
+                    "Set()".to_owned()
+                } else {
+                    let mut types = Vec::new();
+                    for i in v {
+                        if !types.contains(&i.type_of()) {
+                            types.push(i.type_of());
+                        }
+                    }
+
+                    format!("Set({})", types.join(" | "))
+                }
+            }
+
+            Self::Object(_) => "object".to_owned(),
+            Self::Never => "never".to_owned(),
+        }
+    }
+}
+
+impl Debug for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fn(a, _) => write!(f, "fn({})", a.join(", ")),
+            Self::Array(a) => f.debug_list().entries(a).finish(),
+            Self::Boolean(b) => {
+                write!(f, "{b}")
+            }
+            Self::Integer(i) => {
+                write!(f, "{i}")
+            }
+            Self::Never => {
+                write!(f, "!")
+            }
+            Self::Object(o) => f.debug_map().entries(o).finish(),
+            Self::Set(a) => f.debug_set().entries(a).finish(),
+            Self::String(s) => write!(f, "{s}"),
+            // _ => todo!(),
+        }
+    }
+}
+
+impl Display for Integer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::I8(i) => write!(f, "{i}"),
+            Self::I16(i) => write!(f, "{i}"),
+            Self::I32(i) => write!(f, "{i}"),
+            Self::I64(i) => write!(f, "{i}"),
+            Self::I128(i) => write!(f, "{i}"),
+            Self::ISize(i) => write!(f, "{i}"),
+            Self::U8(i) => write!(f, "{i}"),
+            Self::U16(i) => write!(f, "{i}"),
+            Self::U32(i) => write!(f, "{i}"),
+            Self::U64(i) => write!(f, "{i}"),
+            Self::U128(i) => write!(f, "{i}"),
+            Self::USize(i) => write!(f, "{i}"),
+        }
+    }
+}
+
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::String(i), Self::String(u)) => i == u,
+            (Self::Boolean(i), Self::Boolean(u)) => i == u,
+            (Self::Array(i), Self::Array(u)) => i == u,
+            (Self::Set(i), Self::Set(u)) => i == u,
+            (Self::Set(i), u) | (u, Self::Set(i)) => i.contains(u),
+            (Self::Never, Self::Never) => true,
+            (Self::Integer(Integer::I8(l)), Self::Integer(Integer::I8(r))) => l == r,
+            (Self::Integer(Integer::I16(l)), Self::Integer(Integer::I16(r))) => l == r,
+            (Self::Integer(Integer::I32(l)), Self::Integer(Integer::I32(r))) => l == r,
+            (Self::Integer(Integer::I64(l)), Self::Integer(Integer::I64(r))) => l == r,
+            (Self::Integer(Integer::I128(l)), Self::Integer(Integer::I128(r))) => l == r,
+            (Self::Integer(Integer::ISize(l)), Self::Integer(Integer::ISize(r))) => l == r,
+            (Self::Integer(Integer::U8(l)), Self::Integer(Integer::U8(r))) => l == r,
+            (Self::Integer(Integer::U16(l)), Self::Integer(Integer::U16(r))) => l == r,
+            (Self::Integer(Integer::U32(l)), Self::Integer(Integer::U32(r))) => l == r,
+            (Self::Integer(Integer::U64(l)), Self::Integer(Integer::U64(r))) => l == r,
+            (Self::Integer(Integer::U128(l)), Self::Integer(Integer::U128(r))) => l == r,
+            (Self::Integer(Integer::USize(l)), Self::Integer(Integer::USize(r))) => l == r,
+            (i, u) => panic!("cannot compare `{} == {}`", i.type_of(), u.type_of()),
+        }
+    }
+}
+
+impl PartialOrd for Literal {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Self::Integer(l), Self::Integer(r)) => l.partial_cmp(r),
+            (_, _) => None,
+        }
+    }
+}
+
+impl Add for Literal {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Array(v), Self::Array(b)) => Self::Array(vec![v, b].concat()),
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l + r),
+            (Self::String(l), Self::String(r)) => Self::String(l + r.as_str()),
+            (i, o) => panic!(
+                "operation `{0} + {1}` failed: Add({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
+        }
+    }
+}
+
+impl Sub for Literal {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l - r),
+            (i, o) => panic!(
+                "operation `{0} - {1}` failed: Sub({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
+        }
+    }
+}
+
+impl Mul for Literal {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l * r),
+            (i, o) => panic!(
+                "operation `{0} * {1}` failed: Mul({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
+        }
+    }
+}
+
+impl Div for Literal {
+    type Output = Self;
+    fn div(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l / r),
+            (i, o) => panic!(
+                "operation `{0} / {1}` failed: Div({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
+        }
+    }
+}
+
+impl Rem for Literal {
+    type Output = Self;
+    fn rem(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l / r),
+            (i, o) => panic!(
+                "operation `{0} % {1}` failed: Rem({1}) not implemented for {0}",
+                i.type_of(),
+                o.type_of()
+            ),
+        }
+    }
+}
+
+macro_rules! impl_all_ints {
+    ($trait:ident, $fn:ident) => {
+        impl $trait for Integer {
+            type Output = Self;
+            fn $fn(self, rhs: Integer) -> Self::Output {
+                match (self, rhs) {
+                    (Self::I8(i), Self::I8(r)) => Self::I8($trait::$fn(i, r)),
+                    (Self::I16(i), Self::I16(r)) => Self::I16($trait::$fn(i, r)),
+                    (Self::I32(i), Self::I32(r)) => Self::I32($trait::$fn(i, r)),
+                    (Self::I64(i), Self::I64(r)) => Self::I64($trait::$fn(i, r)),
+                    (Self::I128(i), Self::I128(r)) => Self::I128($trait::$fn(i, r)),
+                    (Self::ISize(i), Self::ISize(r)) => Self::ISize($trait::$fn(i, r)),
+                    (Self::U8(i), Self::U8(r)) => Self::U8($trait::$fn(i, r)),
+                    (Self::U16(i), Self::U16(r)) => Self::U16($trait::$fn(i, r)),
+                    (Self::U32(i), Self::U32(r)) => Self::U32($trait::$fn(i, r)),
+                    (Self::U64(i), Self::U64(r)) => Self::U64($trait::$fn(i, r)),
+                    (Self::U128(i), Self::U128(r)) => Self::U128($trait::$fn(i, r)),
+                    (Self::USize(i), Self::USize(r)) => Self::USize($trait::$fn(i, r)),
+                    (i, r) => panic!("impl `{}` does not exist for {i} {r}", stringify!($trait)),
+                }
+            }
+        }
+    };
+}
+
+impl_all_ints!(Add, add);
+impl_all_ints!(Sub, sub);
+impl_all_ints!(Mul, mul);
+impl_all_ints!(Div, div);
+impl_all_ints!(Rem, rem);

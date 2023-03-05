@@ -2,6 +2,11 @@ use crate::ast::*;
 use crate::lexer::Span;
 use crate::token::Token::{self, *};
 use plex::parser;
+macro_rules! b {
+    [$T:expr] => {
+        Box::new($T)
+    };
+}
 parser! {
     fn parse_(Token, Span);
 
@@ -17,242 +22,83 @@ parser! {
 
     statements: Vec<Expr> {
       => vec![],
-      statements[mut st] fn_decl[e] Semi => {
+      statements[mut st] statement[e] => {
         st.push(e);
         st
-      },
-    }
-
-    fn_decl: Expr {
-      Fn Ident(n) LeftParen list[args] RightParen LeftBrace statements[s] RightBrace => Expr {
-        span: span!(),
-        node: Node::Fn(n, Box::new(args), s),
-      },
-
-      if_statement[i] => i,
-    }
-
-    if_statement: Expr {
-      // if ( assign[a] ) { statements[s] } else { statements[r] }
-      If LeftParen assign[a] RightParen LeftBrace statements[s] RightBrace Else LeftBrace statements[r] RightBrace => Expr {
-        span: span!(),
-        node: Node::If(Box::new(a), s, Some(r))
-      },
-
-      If LeftParen assign[a] RightParen LeftBrace statements[s] RightBrace => Expr {
-        span: span!(),
-        node: Node::If(Box::new(a), s, None)
-      },
-
-      while_statement[w] => w,
-    }
-
-    while_statement: Expr {
-      While LeftParen assign[a] RightParen LeftBrace statements[s] RightBrace => Expr {
-        span: span!(),
-        node: Node::While(Box::new(a), s)
-      },
-
-      assign[a] => a
-    }
-
-    assign: Expr {
-        Print assign[a] => Expr {
-            span: span!(),
-            node: Node::Print(Box::new(a)),
-        },
-        Throw assign[a] => Expr {
-            span: span!(),
-            node: Node::Throw(Box::new(a)),
-        },
-        Typeof assign[a] => Expr {
-            span: span!(),
-            node: Node::Typeof(Box::new(a)),
-        },
-        Ident(var) Equals assign[rhs] => Expr {
-            span: span!(),
-            node: Node::Assign(var, Box::new(rhs)),
-        },
-
-        Env get[g] => Expr {
-          span: span!(),
-          node: Node::InnerEnv(Box::new(g))
-        },
-
-        Env Ident(var) => Expr {
-          span: span!(),
-          node: Node::Env(var),
-        },
-
-        get[g] Equals assign[rhs] => Expr {
-          span: span!(),
-          node: Node::Set(Box::new(g), Box::new(rhs))
-        },
-
-        call[t] => t,
-    }
-
-    call: Expr {
-       LeftParen list[a] RightParen => Expr {
-        span: span!(),
-        node: Node::Call(Box::new(t), Box::new(a))
-      },
-
-      get[t] => t
-    }
-
-    get: Expr {
-      Ident(obj) Dot get[prop] => {
-        let node = prop.node;
-
-        if let Node::Get(n, v) = node {
-          Expr {
-            span: span!(),
-            node: Node::Get(obj, [vec![n], v].concat())
-          }
-        } else { panic!("invalid get accessor") }
-      },
-
-      Ident(obj) Dot Integer(prop) => Expr {
-        span: span!(),
-        node: Node::Get(obj, vec![prop.to_string()])
-      },
-
-      Ident(obj) Dot Key(prop) => Expr {
-        span: span!(),
-        node: Node::Get(obj, vec![prop])
-      },
-
-      Ident(obj) Dot Ident(prop) => Expr {
-        span: span!(),
-        node: Node::Get(obj, vec![prop])
-      },
-
-      LeftBracket list[l] RightBracket => Expr {
-        span: span!(),
-        node: Node::Array(Some(Box::new(l))),
-      },
-
-      LeftBracket RightBracket => Expr {
-        span: span!(),
-        node: Node::Array(None),
-      },
-
-      LeftBrace list[l] RightBrace => Expr {
-        span: span!(),
-        node: Node::List(Some(Box::new(l))),
-      },
-
-      LeftBrace RightBrace => Expr {
-        span: span!(),
-        node: Node::Array(None),
       }
     }
 
-
-
-    list: Expr {
-      cmp[lhs] Comma list[rhs] => Expr {
-        span: span!(),
-        node: Node::Pair(Box::new(lhs), Box::new(rhs))
-      },
-
-      cmp[lhs] => lhs
+    statement: Expr {
+      expr[a] Semi => a,
     }
 
-    cmp: Expr {
-      term[lhs] Eq term[rhs] => Expr {
-        span: span!(),
-        node: Node::Eq(Box::new(lhs), Box::new(rhs)),
-      },
-      term[lhs] Ne term[rhs] => Expr {
-        span: span!(),
-        node: Node::Ne(Box::new(lhs), Box::new(rhs)),
-      },
-      term[lhs] Gt term[rhs] => Expr {
-        span: span!(),
-        node: Node::Gt(Box::new(lhs), Box::new(rhs)),
-      },
-      term[lhs] Lt term[rhs] => Expr {
-        span: span!(),
-        node: Node::Lt(Box::new(lhs), Box::new(rhs)),
-      },
-      term[lhs] Ge term[rhs] => Expr {
-        span: span!(),
-        node: Node::Ge(Box::new(lhs), Box::new(rhs)),
-      },
-      term[lhs] Le term[rhs] => Expr {
-        span: span!(),
-        node: Node::Le(Box::new(lhs), Box::new(rhs)),
-      },
-      term[x] => x
+    expr: Expr {
+      Print unary[b] => Expr(span!(), Node::Print(b![b])),
+      Typeof unary[b] => Expr(span!(), Node::Typeof(b![b])),
+      unary[b] => b
+    }
+
+    unary: Expr {
+      Bang factor[b] => Expr(span!(), Node::Inv(b![b])),
+      Minus factor[b] => Expr(span!(), Node::Neg(b![b])),
+      Not factor[b] => Expr(span!(), Node::Not(b![b])),
+      factor[a] => a,
+    }
+
+    factor: Expr {
+      factor[a] Star term[b] => Expr(span!(), Node::Mul(b![a], b![b])),
+      factor[a] Slash term[b] => Expr(span!(), Node::Div(b![a], b![b])),
+      factor[a] Percent term[b] => Expr(span!(), Node::Rem(b![a], b![b])),
+      term[a] => a,
     }
 
     term: Expr {
-        term[lhs] Plus fact[rhs] => Expr {
-            span: span!(),
-            node: Node::Add(Box::new(lhs), Box::new(rhs)),
-        },
-        term[lhs] Minus fact[rhs] => Expr {
-            span: span!(),
-            node: Node::Sub(Box::new(lhs), Box::new(rhs)),
-        },
-        fact[x] => x
+      term[a] Plus shift[b] => Expr(span!(), Node::Add(b![a], b![b])),
+      term[a] Minus shift[b] => Expr(span!(), Node::Sub(b![a], b![b])),
+      shift[a] => a,
     }
 
-    fact: Expr {
-        fact[lhs] Star mono[rhs] => Expr {
-            span: span!(),
-            node: Node::Mul(Box::new(lhs), Box::new(rhs)),
-        },
-        fact[lhs] Slash mono[rhs] => Expr {
-            span: span!(),
-            node: Node::Div(Box::new(lhs), Box::new(rhs)),
-        },
-        fact[lhs] Percent mono[rhs] => Expr {
-          span: span!(),
-          node: Node::Rem(Box::new(lhs), Box::new(rhs)),
-        },
-        mono[x] => x
+    shift: Expr {
+      shift[a] Shl and[b] => Expr(span!(), Node::Shl(b![a], b![b])),
+      shift[a] Shr and[b] => Expr(span!(), Node::Shr(b![a], b![b])),
+      and[a] => a,
     }
 
-    mono: Expr {
-      Bang mono[rhs] => Expr {
-        span: span!(),
-        node: Node::Not(Box::new(rhs))
-      },
-      atom[x] => x
+    and: Expr {
+      and[a] And xor[b] => Expr(span!(), Node::And(b![a], b![b])),
+      xor[a] => a,
+    }
+
+    xor: Expr {
+      xor[a] Xor or[b] => Expr(span!(), Node::Xor(b![a], b![b])),
+      or[a] => a,
+    }
+
+    or: Expr {
+      or[a] Or cmp[b] => Expr(span!(), Node::Or(b![a], b![b])),
+      cmp[a] => a,
+    }
+
+    cmp: Expr {
+      cmp[a] EqEq atom[b] => Expr(span!(), Node::Eq(b![a], b![b])),
+      cmp[a] Ne atom[b] => Expr(span!(), Node::Ne(b![a], b![b])),
+      cmp[a] Gt atom[b] => Expr(span!(), Node::Gt(b![a], b![b])),
+      cmp[a] Lt atom[b] => Expr(span!(), Node::Lt(b![a], b![b])),
+      cmp[a] Ge atom[b] => Expr(span!(), Node::Ge(b![a], b![b])),
+      cmp[a] Le atom[b] => Expr(span!(), Node::Le(b![a], b![b])),
+
+      atom[a] => a,
     }
 
     atom: Expr {
-        // round brackets to destructure tokens
-        Ident(i) => Expr {
-            span: span!(),
-            node: Node::Var(i),
-        },
+      Ident(i) => Expr(span!(), Node::Var(i),),
+      Integer(i) => Expr(span!(), Node::Literal(Literal::Integer(i))),
+      String(i) => Expr(span!(), Node::Literal(Literal::String(i))),
+      True => Expr(span!(), Node::Literal(Literal::Boolean(true))),
+      False => Expr(span!(), Node::Literal(Literal::Boolean(false))),
+      Bang => Expr(span!(), Node::Literal(Literal::Never)),
 
-        get[t] => t,
-        Integer(i) => Expr {
-            span: span!(),
-            node: Node::Literal(Literal::Integer(i)),
-        },
-        String(i) => Expr {
-            span: span!(),
-            node: Node::Literal(Literal::String(i))
-        },
-        True => Expr {
-            span: span!(),
-            node: Node::Literal(Literal::Boolean(true))
-        },
-        False => Expr {
-            span: span!(),
-            node: Node::Literal(Literal::Boolean(false))
-        },
-        Bang => Expr {
-          span: span!(),
-          node: Node::Literal(Literal::Never)
-        },
-        LeftParen assign[a] RightParen => a,
+      LeftParen expr[a] RightParen => a
     }
 }
 

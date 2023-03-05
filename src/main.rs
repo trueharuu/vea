@@ -7,19 +7,19 @@
     is_some_and,
     result_option_inspect
 )]
-use std::collections::HashMap;
 
-use interpreter::interp;
-use lexer::Lexer;
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
-use parser::parse;
-use serenity::framework::standard::macros::group;
-use serenity::framework::standard::{Args, CommandResult};
-use serenity::framework::StandardFramework;
-use serenity::http::CacheHttp;
-use serenity::model::prelude::Message;
-use serenity::prelude::*;
-use serenity::{async_trait, framework::standard::macros::command};
+use crate::{
+    interpreter::{interp, Env},
+    lexer::Lexer,
+    parser::parse,
+};
 
 pub mod ast;
 pub mod interpreter;
@@ -28,8 +28,16 @@ pub mod parser;
 pub mod token;
 pub mod tools;
 
+use std::env;
+
+use serenity::async_trait;
+use serenity::framework::standard::macros::{command, group};
+use serenity::framework::standard::{CommandResult, StandardFramework};
+use serenity::model::channel::Message;
+use serenity::prelude::*;
+
 #[group]
-#[commands(eval)]
+#[commands(ping)]
 struct General;
 
 struct Handler;
@@ -44,7 +52,7 @@ async fn main() {
         .group(&GENERAL_GROUP);
 
     // Login with a bot token from the environment
-    let token = "NzYwMTQzNjE1MTI0NDM5MDQw.Gv5Sqp.-Ff1jKvi8uG-8m_5mkJj50waVOXMeK25r1rM2I";
+    let token = env::var("DISCORD_TOKEN").expect("token");
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
     let mut client = Client::builder(token, intents)
         .event_handler(Handler)
@@ -59,31 +67,8 @@ async fn main() {
 }
 
 #[command]
-async fn eval(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let value = args.rest();
-
-    let lexed = Lexer::new(value);
-    let parsed = parse(lexed);
-    if let Ok(mut p) = parsed {
-        let mut n = HashMap::new();
-        let mut s = String::new();
-        let interp = interp(&mut p, &mut n, &mut s);
-        if let Ok(i) = interp {
-            msg.reply(ctx.http(), format!("```rs\n{i}\n```")).await?;
-        } else if let Err(i) = interp {
-            msg.reply(ctx.http(), format!("```rs\nError at runtime:\n{}\n```", i))
-                .await?;
-        }
-    } else if let Err(p) = parsed {
-        msg.reply(
-            ctx.http(),
-            format!(
-                "```rs\nError while parsing text:\n\t{}\nToken Tree:\n\t{:?}\n```",
-                p.1, p.0
-            ),
-        )
-        .await?;
-    }
+async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
+    msg.reply(ctx, "Pong!").await?;
 
     Ok(())
 }

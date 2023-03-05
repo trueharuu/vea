@@ -1,96 +1,72 @@
 use std::fmt::Debug;
 
-use crate::token::{Integer, Token};
+use crate::token::Token;
 use plex::lexer;
 
 lexer! {
     fn next_token(text: 'a) -> Token;
 
-    r#"[ \t\r\n]+"# => Token::Whitespace,
-    // "C-style" comments (/* .. */) - can't contain "*/"
-    r#"/[*](~(.*[*]/.*))[*]/"# => Token::Comment,
-    // "C++-style" comments (// ...)
-    r#"//[^\n]*"# => Token::Comment,
+    r#"\s"# => Token::Whitespace,
+    r#"[0-9]+"# => Token::Integer(text.parse().unwrap()),
+    r#""[^"]*""# => Token::String(text[1..text.len()-1].to_owned()),
 
-    r#"print"# => Token::Print,
-    r#"fn"# => Token::Fn,
-    r#"typeof"# => Token::Typeof,
-    r#"throw"# => Token::Throw,
-
-    r#"if"# => Token::If,
-    r#"else"# => Token::Else,
-    r#"while"# => Token::While,
-
-    r#"[0-9]+([ui](8|16|32|64|128|size))?"# => {
-      let mut parts = text.split_inclusive(&['i', 'u']);
-      let [mut value, ty] = [parts.next().unwrap(), parts.next().unwrap_or("")];
-      let typ = if value.ends_with(&['i', 'u']) {
-          let last = &value[value.len() - 1..];
-          value = &value[..value.len() - 1];
-          vec![last.to_owned(), ty.to_owned()].concat()
-      } else {
-        ty.to_owned()
-      };
-
-      match typ.as_str() {
-        "i8" => Token::Integer(Integer::I8(value.parse::<i8>().unwrap())),
-        "i16" => Token::Integer(Integer::I16(value.parse::<i16>().unwrap())),
-        "" | "i32" => Token::Integer(Integer::I32(value.parse::<i32>().unwrap())),
-        "i64" => Token::Integer(Integer::I64(value.parse::<i64>().unwrap())),
-        "i128" => Token::Integer(Integer::I128(value.parse::<i128>().unwrap())),
-        "isize" => Token::Integer(Integer::ISize(value.parse::<isize>().unwrap())),
-        "u8" => Token::Integer(Integer::U8(value.parse::<u8>().unwrap())),
-        "u16" => Token::Integer(Integer::U16(value.parse::<u16>().unwrap())),
-        "u32" => Token::Integer(Integer::U32(value.parse::<u32>().unwrap())),
-        "u64" => Token::Integer(Integer::U64(value.parse::<u64>().unwrap())),
-        "u128" => Token::Integer(Integer::U128(value.parse::<u128>().unwrap())),
-        "usize" => Token::Integer(Integer::USize(value.parse::<usize>().unwrap())),
-
-        &_ => panic!("unknown integer type {ty}"),
-      }
-    }
-
+    r#"\("# => Token::LeftParen,
+    r#"\)"# => Token::RightParen,
     r#"\["# => Token::LeftBracket,
     r#"\]"# => Token::RightBracket,
-
     r#"\{"# => Token::LeftBrace,
     r#"\}"# => Token::RightBrace,
-
+    r#"\+"# => Token::Plus,
+    r#"\+="# => Token::PlusEq,
+    r#"-"# => Token::Minus,
+    r#"-="# => Token::MinusEq,
+    r#"\*"# => Token::Star,
+    r#"\*="# => Token::StarEq,
+    r#"\/"# => Token::Slash,
+    r#"\/="# => Token::SlashEq,
+    r#"%"# => Token::Percent,
+    r#"%="# => Token::PercentEq,
+    r#"="# => Token::Eq,
+    r#"=="# => Token::EqEq,
+    r#"!="# => Token::Ne,
+    r#">"# => Token::Gt,
+    r#">="# => Token::Ge,
+    r#"<"# => Token::Lt,
+    r#"<="# => Token::Le,
+    r#"\|"# => Token::Or,
+    r#"\|="# => Token::OrEq,
+    r#"\&"# => Token::And,
+    r#"\&="# => Token::AndEq,
+    r#"\^"# => Token::Xor,
+    r#"\^="# => Token::XorEq,
+    r#"<<"# => Token::Shl,
+    r#"<<="# => Token::ShlEq,
+    r#">>"# => Token::Shr,
+    r#">>="# => Token::ShrEq,
+    r#"\?"# => Token::Question,
+    r#"!"# => Token::Bang,
+    r#"_"# => Token::Underscore,
+    r#"\~"# => Token::Not,
+    r#"\."# => Token::Dot,
+    r#","# => Token::Comma,
+    r#";"# => Token::Semi,
+    r#":"# => Token::Colon,
+    r#"let"# => Token::Let,
+    r#"if"# => Token::If,
+    r#"else"# => Token::Else,
+    r#"drop"# => Token::Drop,
+    r#"while"# => Token::While,
+    r#"for"# => Token::For,
+    r#"break"# => Token::Break,
+    r#"continue"# => Token::Continue,
+    r#"fn"# => Token::Fn,
+    r#"print"# => Token::Print,
+    r#"typeof"# => Token::Typeof,
     r#"true"# => Token::True,
     r#"false"# => Token::False,
 
-    r#","# => Token::Comma,
+    r#"."# => panic!("unexpected '{text}'")
 
-    r#"\"[^\n"]*\""# =>
-        Token::String(text[1..(text.len() - 1)].to_owned()),
-    r#"env"# => Token::Env,
-
-    r#"[a-zA-Z_][a-zA-Z0-9_]*"# => Token::Ident(text.to_owned()),
-    r#"[a-zA-Z0-9_]+"# => Token::Key(text.to_owned()),
-
-    r#"="# => Token::Equals,
-    r#"\+"# => Token::Plus,
-    r#"-"# => Token::Minus,
-    r#"\*"# => Token::Star,
-    r#"/"# => Token::Slash,
-    r#"\("# => Token::LeftParen,
-    r#"\)"# => Token::RightParen,
-    r#";"# => Token::Semi,
-    r#"!"# => Token::Bang,
-    r#"%"# => Token::Percent,
-
-    r#">"# => Token::Gt,
-    r#"<"# => Token::Lt,
-
-    r#">="# => Token::Ge,
-    r#"<="# => Token::Le,
-
-    r#"=="# => Token::Eq,
-    r#"!="# => Token::Ne,
-
-    r#"\."# => Token::Dot,
-
-    r#"."# => panic!("unexpected character: {}", text),
 }
 
 pub struct Lexer<'a> {
@@ -129,9 +105,9 @@ impl<'a> Iterator for Lexer<'a> {
                 return None;
             };
             match tok {
-                Token::Whitespace | Token::Comment => {
-                    continue;
-                }
+                // Token::Whitespace | Token::Comment => {
+                //     continue;
+                // }
                 tok => {
                     return Some((tok, span));
                 }

@@ -1,6 +1,6 @@
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 
-use crate::{interpreter::Env, lexer::Span};
+use crate::{lexer::Span, literal::Literal, tools::Named};
 
 #[derive(Debug, Clone)]
 pub struct Program {
@@ -52,25 +52,53 @@ pub enum Node {
 
     If(Bex, Vec<Expr>, Option<Vec<Expr>>), //    if (cond) { x } else { y }
     While(Bex, Vec<Expr>),                 // while (cond) { x } else { y }
+
+    Block(Vec<Expr>, Option<Box<Expr>>), // { x; y }
 }
 
-#[derive(Debug, Clone)]
-pub enum Literal {
-    Integer(i64),
-    String(String),
-    Boolean(bool),
-    Object(Env),
-    Never,
-}
-
-impl Display for Literal {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Named for Node {
+    fn name(&self) -> String {
         match self {
-            Self::Boolean(b) => write!(f, "{b}"),
-            Self::Integer(b) => write!(f, "{b}"),
-            Self::String(b) => write!(f, "{b}"),
-            Self::Object(_) => write!(f, "object"),
-            Self::Never => write!(f, "!"),
+            Self::Add(..) => "Add".to_string(),
+            Self::Sub(..) => "Sub".to_string(),
+            Self::Mul(..) => "Mul".to_string(),
+            Self::Div(..) => "Div".to_string(),
+            Self::Rem(..) => "Rem".to_string(),
+
+            Self::Eq(..) => "Eq".to_string(),
+            Self::Ne(..) => "Ne".to_string(),
+            Self::Gt(..) => "Gt".to_string(),
+            Self::Ge(..) => "Ge".to_string(),
+            Self::Lt(..) => "Lt".to_string(),
+            Self::Le(..) => "Le".to_string(),
+
+            Self::Inv(..) => "Inv".to_string(),
+            Self::Not(..) => "Not".to_string(),
+            Self::Neg(..) => "Neg".to_string(),
+
+            Self::Or(..) => "Or".to_string(),
+            Self::And(..) => "And".to_string(),
+            Self::Xor(..) => "Xor".to_string(),
+            Self::Shl(..) => "Shl".to_string(),
+            Self::Shr(..) => "Shr".to_string(),
+
+            Self::Pair(..) => "Pair".to_string(),
+
+            Self::Var(..) => "Var".to_string(),
+            Self::Let(..) => "Let".to_string(),
+
+            Self::Print(..) => "Print".to_string(),
+            Self::Typeof(..) => "Typeof".to_string(),
+
+            Self::Literal(..) => "Literal".to_string(),
+
+            Self::Set(..) => "Set".to_string(),
+            Self::Get(..) => "Get".to_string(),
+
+            Self::If(..) => "If".to_string(),
+            Self::While(..) => "While".to_string(),
+
+            Self::Block(..) => "Block".to_string(),
         }
     }
 }

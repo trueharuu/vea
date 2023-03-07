@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::lexer::Span;
+use crate::literal::Literal;
 use crate::token::Token::{self, *};
 use plex::parser;
 macro_rules! b {
@@ -29,14 +30,24 @@ parser! {
     }
 
     statement: Expr {
+      Let Ident(t) Eq expr[a] Semi => Expr(span!(), Node::Let(t, Box::new(a))),
+      // block[b] => b,
       expr[a] Semi => a,
     }
+
+
 
     expr: Expr {
       Print unary[b] => Expr(span!(), Node::Print(b![b])),
       Typeof unary[b] => Expr(span!(), Node::Typeof(b![b])),
-      unary[b] => b
+      unary[b] => b,
+      // block[b] => b,
     }
+
+    // block: Expr {
+    //   LeftBrace statements[st] RightBrace => Expr(span!(), Node::Block(st, None)),
+    //   LeftBrace expr[st] RightBrace => Expr(span!(), Node::Block(Vec::new(), Some(Box::new(st)))),
+    // }
 
     unary: Expr {
       Bang factor[b] => Expr(span!(), Node::Inv(b![b])),
@@ -102,8 +113,8 @@ parser! {
     }
 }
 
-pub fn parse<I: Iterator<Item = (Token, Span)>>(
-    i: I,
-) -> Result<Program, (Option<(Token, Span)>, &'static str)> {
+type Err = (Option<(Token, Span)>, &'static str);
+
+pub fn parse<I: Iterator<Item = (Token, Span)>>(i: I) -> Result<Program, Err> {
     parse_(i)
 }

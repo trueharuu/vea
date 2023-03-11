@@ -4,7 +4,8 @@
     let_chains,
     if_let_guard,
     is_some_and,
-    result_option_inspect
+    result_option_inspect,
+    result_flattening
 )]
 #![warn(clippy::all)]
 #![allow(unused_braces, clippy::redundant_closure_call, clippy::ptr_arg)]
@@ -30,7 +31,7 @@ use serenity::{
 };
 
 #[group]
-#[commands(eval)]
+#[commands(eval, lex)]
 struct General;
 
 struct Handler;
@@ -63,6 +64,38 @@ async fn main() {
 async fn eval(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let src = args.rest();
     msg.reply(ctx.http(), bump(src)).await?;
+    Ok(())
+}
+
+#[command]
+async fn lex(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    println!("lex!");
+    let src = args.rest();
+    let tokens = lexer::Lexer::new(src).collect::<Vec<_>>();
+
+    for i in tokens.clone() {
+        if let Err(e) = i.0 {
+            msg.reply(
+                ctx.http(),
+                format!(":warning: lexing error:\n```rs\n{e} at chars {:?}```", i.1),
+            )
+            .await?;
+            return Ok(());
+        }
+    }
+
+    msg.reply(
+        ctx.http(),
+        format!(
+            "output:\n```rs\n{}\n```",
+            tokens
+                .into_iter()
+                .map(|(c, p)| format!("{: >3}..{: <3} {:?}", p.0, p.1, c.unwrap()))
+                .collect::<Vec<_>>()
+                .join("\n")
+        ),
+    )
+    .await?;
     Ok(())
 }
 

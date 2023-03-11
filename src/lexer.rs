@@ -6,7 +6,6 @@ use plex::lexer;
 lexer! {
     fn next_token(text: 'a) -> Result<Token, String>;
 
-
     r#"\("# => Ok(Token::LeftParen),
     r#"\)"# => Ok(Token::RightParen),
     r#"\["# => Ok(Token::LeftBracket),
@@ -64,7 +63,13 @@ lexer! {
 
     r#"[a-z_]+"# => Ok(Token::Ident(text.to_string())),
     r#"[ \t\n\r]"# => Ok(Token::Whitespace),
-    r#"[0-9]+"# => Ok(Token::Integer(text.parse().unwrap())),
+    r#"[0-9]+"# => {
+         match text.parse::<i64>() {
+            Err(p) => Err(format!("{p}")),
+            Ok(p) => Ok(Token::Integer(p))
+         }
+
+    },
     r#""[^"]*""# => Ok(Token::String(text[1..text.len()-1].to_owned())),
 
     r#"."# => Err(format!("Unexpected '{text}'"))

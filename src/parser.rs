@@ -35,19 +35,28 @@ parser! {
       expr[a] Semi => a,
     }
 
-
-
     expr: Expr {
       Print unary[b] => Expr(span!(), Node::Print(b![b])),
       Typeof unary[b] => Expr(span!(), Node::Typeof(b![b])),
       unary[b] => b,
-      // block[b] => b,
+      list[l] => l,
     }
 
-    // block: Expr {
-    //   LeftBrace statements[st] RightBrace => Expr(span!(), Node::Block(st, None)),
-    //   LeftBrace expr[st] RightBrace => Expr(span!(), Node::Block(Vec::new(), Some(Box::new(st)))),
-    // }
+    list: Expr {
+      LeftBracket pair[p] RightBracket => Expr(span!(), Node::Array(Some(b![p]))),
+      LeftBracket expr[p] RightBracket => Expr(span!(), Node::Array(Some(b![p]))),
+      LeftBracket RightBracket => Expr(span!(), Node::Array(None)),
+
+      LeftBrace pair[p] RightBrace => Expr(span!(), Node::List(Some(b![p]))),
+      LeftBrace expr[p] RightBrace => Expr(span!(), Node::List(Some(b![p]))),
+      LeftBrace RightBrace => Expr(span!(), Node::List(None)),
+
+    }
+
+    pair: Expr {
+      pair[p] Comma expr[f] => Expr(span!(), Node::Pair(b![p], b![f])),
+      expr[p] Comma expr[f] => Expr(span!(), Node::Pair(b![p], b![f])),
+    }
 
     unary: Expr {
       Bang factor[b] => Expr(span!(), Node::Inv(b![b])),

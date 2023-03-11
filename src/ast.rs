@@ -37,7 +37,9 @@ pub enum Node {
     Shl(Bex, Bex), // a << b
     Shr(Bex, Bex), // a >> b
 
-    Pair(Bex, Bex), // a, b
+    Pair(Bex, Bex),     // a, b
+    Array(Option<Bex>), // [a, b]
+    List(Option<Bex>),  // { a, b }
 
     Var(String),      // x
     Let(String, Bex), // let a = b
@@ -99,6 +101,11 @@ impl Named for Node {
             Self::While(..) => "While".to_string(),
 
             Self::Block(..) => "Block".to_string(),
+
+            Self::Array(..) => "Array".to_string(),
+            Self::List(..) => "List".to_string(),
+
+            _ => format!("{self:?}"),
         }
     }
 }

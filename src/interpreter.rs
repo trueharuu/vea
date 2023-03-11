@@ -1,7 +1,7 @@
 use crate::{ast::*, literal::Literal, tools::Named};
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Write,
     rc::Rc,
     // sync::{Arc, Mutex},
@@ -105,26 +105,93 @@ fn interp_expr<'a>(
             }
         }
 
+        Node::Array(p) => {
+            if let Some(s) = p {
+                let list = parse_pairs(s.clone())
+                    .into_iter()
+                    .map(|x| interp_expr(env, &x, stdout))
+                    .collect::<Vec<_>>();
+                for i in &list {
+                    if let Err(e) = i {
+                        return Err(e.clone());
+                    }
+                }
+
+                Ok(Literal::List(
+                    list.into_iter().map(|x| x.unwrap()).collect::<Vec<_>>(),
+                ))
+            } else {
+                Ok(Literal::List(vec![]))
+            }
+        }
+
+        Node::List(p) => {
+            if let Some(s) = p {
+                println!("{s:?}");
+
+                let values = parse_pairs(s.clone());
+                println!("{values:?}");
+
+                let mut set = Vec::new();
+
+                for i in values {
+                    let value = interp_expr(env, &i, stdout);
+
+                    if let Ok(v) = value {
+                        dbg!(&v);
+
+                        set.push(v);
+                    } else {
+                        return Err(value.unwrap_err());
+                    }
+                }
+
+                Ok(Literal::Set(set))
+            } else {
+                Ok(Literal::Set(vec![]))
+            }
+        }
+
         // ops
         Node::Add(a, b) => interp_expr(env, a, stdout)? + interp_expr(env, b, stdout)?,
-        // Node::Sub(a, b) => interp_expr(env, a, stdout)? - interp_expr(env, b, stdout)?,
-        // Node::Mul(a, b) => interp_expr(env, a, stdout)? * interp_expr(env, b, stdout)?,
-        // Node::Div(a, b) => interp_expr(env, a, stdout)? / interp_expr(env, b, stdout)?,
-        // Node::Rem(a, b) => interp_expr(env, a, stdout)? % interp_expr(env, b, stdout)?,
+        Node::Sub(a, b) => interp_expr(env, a, stdout)? - interp_expr(env, b, stdout)?,
+        Node::Mul(a, b) => interp_expr(env, a, stdout)? * interp_expr(env, b, stdout)?,
+        Node::Div(a, b) => interp_expr(env, a, stdout)? / interp_expr(env, b, stdout)?,
+        Node::Rem(a, b) => interp_expr(env, a, stdout)? % interp_expr(env, b, stdout)?,
 
-        // Node::Eq(a, b) => interp_expr(env, a, stdout)? == interp_expr(env, b, stdout)?,
-        // Node::Ne(a, b) => interp_expr(env, a, stdout)? != interp_expr(env, b, stdout)?,
-        // Node::Gt(a, b) => interp_expr(env, a, stdout)? > interp_expr(env, b, stdout)?,
-        // Node::Ge(a, b) => interp_expr(env, a, stdout)? >= interp_expr(env, b, stdout)?,
-        // Node::Lt(a, b) => interp_expr(env, a, stdout)? < interp_expr(env, b, stdout)?,
-        // Node::Le(a, b) => interp_expr(env, a, stdout)? <= interp_expr(env, b, stdout)?,
-
-        // Node::Inv(a) => interp_expr(env, a, stdout)?.inv(),
-        // Node::Not(a) => interp_expr(env, a, stdout)?.not(),
-        // Node::Neg(a) => -interp_expr(env, a, stdout)?,
+        Node::Eq(a, b) => Ok(Literal::Boolean(
+            interp_expr(env, a, stdout)? == interp_expr(env, b, stdout)?,
+        )),
+        Node::Ne(a, b) => Ok(Literal::Boolean(
+            interp_expr(env, a, stdout)? != interp_expr(env, b, stdout)?,
+        )),
+        Node::Gt(a, b) => Ok(Literal::Boolean(
+            interp_expr(env, a, stdout)? > interp_expr(env, b, stdout)?,
+        )),
+        Node::Ge(a, b) => Ok(Literal::Boolean(
+            interp_expr(env, a, stdout)? >= interp_expr(env, b, stdout)?,
+        )),
+        Node::Lt(a, b) => Ok(Literal::Boolean(
+            interp_expr(env, a, stdout)? < interp_expr(env, b, stdout)?,
+        )),
+        Node::Le(a, b) => Ok(Literal::Boolean(
+            interp_expr(env, a, stdout)? <= interp_expr(env, b, stdout)?,
+        )),
+        Node::Inv(a) => interp_expr(env, a, stdout)?.inv(),
+        Node::Not(a) => interp_expr(env, a, stdout)?.not(),
+        Node::Neg(a) => interp_expr(env, a, stdout).and_then(|x| -x),
         t => Err(format!(
             "Failed to evaulate `{}`: not implemented",
             t.name()
         )),
+    }
+}
+
+fn parse_pairs(t: Box<Expr>) -> Vec<Expr> {
+    if let Node::Pair(p, v) = t.1 {
+        println!("pair: {p:?}, {v:?}");
+        vec![parse_pairs(p), parse_pairs(v)].concat()
+    } else {
+        vec![*t]
     }
 }

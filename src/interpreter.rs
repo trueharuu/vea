@@ -133,14 +133,17 @@ fn interp_expr<'a>(
                 println!("{values:?}");
 
                 let mut set = Vec::new();
+                println!("set.contains(&Literal::Never)");
+                set.contains(&Literal::Never);
+                println!("passed");
 
                 for i in values {
                     let value = interp_expr(env, &i, stdout);
 
                     if let Ok(v) = value {
-                        dbg!(&v);
-
-                        set.push(v);
+                        if !set.contains(&v) {
+                            set.push(v);
+                        }
                     } else {
                         return Err(value.unwrap_err());
                     }

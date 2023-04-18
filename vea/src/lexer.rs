@@ -1,12 +1,11 @@
 use std::fmt::Display;
 
 use chumsky::prelude::*;
-use dbg_pls::DebugPls;
 
 use crate::choice;
-use crate::common::Spanned;
+use crate::span::Span;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, DebugPls)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub enum Token<'a> {
     Ident(&'a str),  // abc
     Number(i64),     // 123
@@ -61,7 +60,7 @@ impl<'a> Display for Token<'a> {
 }
 
 pub fn lexer<'s>(
-) -> impl Parser<'s, &'s str, Vec<Spanned<Token<'s>>>, chumsky::extra::Err<chumsky::error::Rich<'s, char>>>
+) -> impl Parser<'s, &'s str, Vec<Span<Token<'s>>>, chumsky::extra::Err<chumsky::error::Rich<'s, char>>>
 {
     let num: _ = text::int(10)
         .from_str()
@@ -76,9 +75,9 @@ pub fn lexer<'s>(
         .boxed()
         .labelled("ident");
 
-    let string: _ = just('"')
-        .ignore_then(none_of('"').repeated())
-        .then_ignore(just('"'))
+    let string: _ = just('\'')
+        .ignore_then(none_of('\'').repeated())
+        .then_ignore(just('\''))
         .map_slice(Token::String)
         .boxed()
         .labelled("string");
@@ -143,7 +142,7 @@ pub fn lexer<'s>(
         .labelled("token");
 
     token
-        .map_with_span(|tok, span| (tok, span))
+        .map_with_span(|tok, span| (tok, span).into())
         .padded_by(comment.repeated())
         .padded()
         .recover_with(skip_then_retry_until(any().ignored(), end()))

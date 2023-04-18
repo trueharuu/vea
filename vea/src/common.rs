@@ -1,7 +1,5 @@
-use chumsky::span::SimpleSpan;
-
-pub type Span = SimpleSpan<usize>;
-pub type Spanned<T> = (T, Span);
+use crate::span::RawSpan;
+use crate::span::Span;
 
 pub trait Rebox {
     fn rebox(self) -> Box<Self>
@@ -21,6 +19,15 @@ pub trait Tag {
     {
         (self, u)
     }
+
+    fn t(self, u: RawSpan) -> Span<Self>
+    where
+        Self: Sized,
+    {
+        Span(self, u)
+    }
+
+    // fn tag(self, u: Span) -> Spanned<Self> where Self: Sized + std::fmt::Debug { Spanned(self, u) }
 }
 
 impl<T> Tag for T {}

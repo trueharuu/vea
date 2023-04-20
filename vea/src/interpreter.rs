@@ -5,13 +5,13 @@ use crate::literal::Literal;
 use crate::span::RawSpanned;
 use crate::span::Span;
 
-pub struct Env {
-    pub values: HashMap<String, Literal>,
+pub struct Env<'a> {
+    pub values: HashMap<String, Literal<'a>>,
     pub stdout: String,
     pub err: Vec<RawSpanned<String>>,
 }
 
-impl Env {
+impl<'a> Env<'a> {
     pub fn new() -> Self {
         Self {
             err: Default::default(),
@@ -21,13 +21,13 @@ impl Env {
     }
 }
 
-impl Default for Env {
+impl<'a> Default for Env<'a> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-pub fn interp(_program: &mut Env, one: Span<Expr<'_>>) -> Result<Literal, Span<String>> {
+pub fn interp<'t>(_program: &mut Env, one: Span<Expr<'_>>) -> Result<Literal<'t>, Span<String>> {
     let Span(one, _s) = one;
     // dbg!(&one);
     match one {

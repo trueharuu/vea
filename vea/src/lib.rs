@@ -24,6 +24,7 @@ pub mod lexer;
 pub mod literal;
 pub mod parser;
 pub mod span;
+pub mod special_chars;
 
 pub use chumsky;
 pub fn lex(src: &str) -> (Option<Vec<Span<lexer::Token>>>, String) {

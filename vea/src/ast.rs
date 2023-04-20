@@ -2,20 +2,33 @@ use crate::lexer::Token;
 use crate::literal::Literal;
 use crate::span::Span;
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub enum Expr<'a> {
     Access {
         ident: Span<&'a str>,
     },
 
     Literal {
-        value: Literal,
+        value: Literal<'a>,
     },
 
     Group {
         left_paren: Token<'a>,
         expr: Box<Span<Self>>,
         right_paren: Token<'a>,
+    },
+
+    Block {
+        left_brace: Token<'a>,
+        exprs: Vec<Span<Self>>,
+        right_brace: Token<'a>,
+    },
+
+    If {
+        if_token: Token<'a>,
+        then: Box<Span<Self>>,
+        else_token: Option<Token<'a>>,
+        other: Option<Box<Span<Self>>>,
     },
 
     Let {

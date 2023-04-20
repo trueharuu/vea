@@ -12,6 +12,8 @@ pub enum Token<'a> {
     String(&'a str), // "abc"
 
     Let,   // let
+    If,    // if
+    Else,  // else
     Print, // print
     True,  // true
     False, // false
@@ -106,25 +108,29 @@ pub fn lexer<'s>(
     .boxed()
     .labelled("operator");
 
-    let ctrl: _ = just('{')
-        .to(Token::LeftBrace)
-        .or(just('}').to(Token::RightBrace))
-        .or(just('[').to(Token::LeftBracket))
-        .or(just(']').to(Token::RightBracket))
-        .or(just('(').to(Token::LeftParen))
-        .or(just(')').to(Token::RightParen))
-        .or(just(',').to(Token::Comma))
-        .or(just(';').to(Token::Semi))
-        .boxed();
-    // .labelled("control");
+    let ctrl: _ = choice! {
+        just('{').to(Token::LeftBrace),
+        just('}').to(Token::RightBrace),
+        just('[').to(Token::LeftBracket),
+        just(']').to(Token::RightBracket),
+        just('(').to(Token::LeftParen),
+        just(')').to(Token::RightParen),
+        just(',').to(Token::Comma),
+        just(';').to(Token::Semi)
+    }
+    .boxed()
+    .labelled("control");
 
-    let kw: _ = just("let")
-        .to(Token::Let)
-        .or(just("true").to(Token::True))
-        .or(just("false").to(Token::False))
-        .or(just("print").to(Token::Print))
-        .boxed()
-        .labelled("keyword");
+    let kw: _ = choice! {
+        just("let").to(Token::Let),
+        just("if").to(Token::Let),
+        just("else").to(Token::Let),
+        just("true").to(Token::Let),
+        just("false").to(Token::Let),
+        just("print").to(Token::Let)
+    }
+    .boxed()
+    .labelled("keyword");
 
     let comment: _ = just("//")
         .then(any().and_is(just('\n').not()).repeated())

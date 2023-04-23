@@ -11,6 +11,7 @@ use crate::span::Span;
 use crate::common::{Rebox, Tag};
 use crate::lexer::Token;
 
+#[must_use]
 pub fn parser<'t, 's: 't>() -> impl Parser<
     't,
     &'t [Token<'s>],
@@ -38,16 +39,17 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                 }),
 
                 Token::String(z) => Some(Expr::Literal {
-                    value: Literal::String(z),
+                    value: Literal::String(z.to_owned()),
                 }),
 
                 _ => None,
             })
             .map_with_span(Span)
             .or(just(Token::LeftParen)
-                .then(z)
-                .then(just(Token::RightParen))
-                .map_with_span(|((l, e), r): ((Token, Span<Expr>), Token), s| {
+                .map_with_span(Span)
+                .then(z.clone())
+                .then(just(Token::RightParen).map_with_span(Span))
+                .map_with_span(|((l, e), r): ((Span<Token>, Span<Expr>), Span<Token>), s| {
                     Expr::Group {
                         left_paren: l,
                         expr: e.rebox(),
@@ -58,10 +60,10 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             .boxed();
 
             let unary: _ = choice! {
-                just(Token::Bang)
+                just(Token::Bang).map_with_span(Span)
                     .then(atom.clone())
                     .map_with_span(|(t, x), s| Expr::Not { bang_token: t, expr: x.rebox() }.t(s)),
-                just(Token::Minus)
+                just(Token::Minus).map_with_span(Span)
                     .then(atom.clone())
                     .map_with_span(|(t, x), s| Expr::Neg { minus_token: t, expr: x.rebox() }.t(s))
             };
@@ -69,7 +71,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             let sum: _ = choice! {
                 atom
                     .clone()
-                    .then(just(Token::Plus))
+                    .then(just(Token::Plus).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Add {
@@ -81,7 +83,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
 
                 atom
                     .clone()
-                    .then(just(Token::Minus))
+                    .then(just(Token::Minus).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Sub {
@@ -95,7 +97,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             let product: _ = choice! {
                 atom
                     .clone()
-                    .then(just(Token::Star))
+                    .then(just(Token::Star).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Mul {
@@ -107,7 +109,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
 
                 atom
                     .clone()
-                    .then(just(Token::Slash))
+                    .then(just(Token::Slash).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Div {
@@ -121,7 +123,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             let cmp: _ = choice! {
                 atom
                     .clone()
-                    .then(just(Token::Gt))
+                    .then(just(Token::Gt).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Gt {
@@ -133,7 +135,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
 
                 atom
                     .clone()
-                    .then(just(Token::Ge))
+                    .then(just(Token::Ge).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Ge {
@@ -145,7 +147,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
 
                 atom
                     .clone()
-                    .then(just(Token::Lt))
+                    .then(just(Token::Lt).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Lt {
@@ -157,7 +159,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
 
                 atom
                     .clone()
-                    .then(just(Token::Le))
+                    .then(just(Token::Le).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Le {
@@ -171,7 +173,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             let eq: _ = choice! {
                 atom
                     .clone()
-                    .then(just(Token::Eq))
+                    .then(just(Token::EqEq).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Eq {
@@ -183,7 +185,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
 
                 atom
                     .clone()
-                    .then(just(Token::Ne))
+                    .then(just(Token::Ne).map_with_span(Span))
                     .then(atom.clone())
                     .map_with_span(|((l, t), r), s| {
                         Expr::Ne {
@@ -199,10 +201,11 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
         });
 
         let kwlet: _ = just(Token::Let)
+            .map_with_span(Span)
             .then(ident)
-            .then(just(Token::Eq))
+            .then(just(Token::Eq).map_with_span(Span))
             .then(inline.clone())
-            .then(just(Token::Semi))
+            .then(just(Token::Semi).map_with_span(Span))
             .map_with_span(|((((tl, i), e), te), ts), s| {
                 Expr::Let {
                     let_token: tl,
@@ -215,8 +218,9 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             });
 
         let block = just(Token::LeftBrace)
+            .map_with_span(Span)
             .then(expr.clone())
-            .then(just(Token::RightBrace))
+            .then(just(Token::RightBrace).map_with_span(Span))
             .map_with_span(|((lb, e), rb), s| {
                 Expr::Block {
                     left_brace: lb,
@@ -228,16 +232,25 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
 
         let kwif = recursive(|kif| {
             just(Token::If)
+                .map_with_span(Span)
+                .then(
+                    just(Token::LeftParen)
+                        .map_with_span(Span)
+                        .ignore_then(inline.clone())
+                        .then_ignore(just(Token::RightParen).map_with_span(Span)),
+                )
                 .then(block.clone())
                 .then(
                     just(Token::Else)
+                        .map_with_span(Span)
                         .then(block.clone().or(kif).or_not())
                         .or_not(),
                 )
-                .map_with_span(|((l, e), z), s| {
+                .map_with_span(|(((l, c), e), z), s| {
                     if let Some((p, q)) = z {
                         Expr::If {
                             if_token: l,
+                            condition: c.rebox(),
                             then: e.rebox(),
                             else_token: Some(p),
                             other: q.map(Box::new),
@@ -245,6 +258,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                     } else {
                         Expr::If {
                             if_token: l,
+                            condition: c.rebox(),
                             then: e.rebox(),
                             else_token: None,
                             other: None,
@@ -254,7 +268,26 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                 })
         });
 
-        choice! { block, kwlet, kwif }.repeated().collect()
+        let kwprint = just(Token::Print)
+            .map_with_span(Span)
+            .then(just(Token::LeftParen).map_with_span(Span))
+            .then(inline.clone())
+            .then(just(Token::RightParen).map_with_span(Span))
+            .then(just(Token::Semi).map_with_span(Span))
+            .map_with_span(|((((lp, p), e), rp), sm), s| {
+                Expr::Print {
+                    value: e.rebox(),
+                    left_paren: lp,
+                    print_token: p,
+                    right_paren: rp,
+                    semi_token: sm,
+                }
+                .t(s)
+            });
+
+        choice! { block, kwlet, kwif, kwprint, inline }
+            .repeated()
+            .collect()
     });
 
     total

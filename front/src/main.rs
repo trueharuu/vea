@@ -58,11 +58,8 @@ async fn lex(context: Context<'_>, src: CodeBlock) -> Result {
     if let Some(t) = l.0 {
         context
             .say(format!(
-                "```rs\n{}\n```",
-                t.into_iter()
-                    .map(|x| format!("{} @ {:?}", x.1, x.0))
-                    .collect::<Vec<_>>()
-                    .join("\n")
+                "```rs\n{:#?}\n```",
+                t.into_iter().collect::<Vec<_>>()
             ))
             .await?;
     }
@@ -108,7 +105,9 @@ async fn vea(context: Context<'_>, src: CodeBlock) -> Result {
     }
 
     if let Some(t) = l.0 {
-        let x = vea::parse(&src.code, t);
+        let x = vea::parse(&src.code, t.clone());
+
+        dbg!(&x);
 
         if !x.1.is_empty() {
             context
@@ -117,7 +116,7 @@ async fn vea(context: Context<'_>, src: CodeBlock) -> Result {
         }
 
         if let Some(p) = x.0 {
-            let m = vea::interp(&src.code, p);
+            let m = vea::interp(&src.code, t, p);
             if !m.is_empty() {
                 context.say(format!("```ansi\n{m}\n```")).await?;
             }

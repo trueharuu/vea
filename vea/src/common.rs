@@ -27,6 +27,8 @@ pub trait Tag {
         Span(self, u)
     }
 
+    // fn j(self, u: ) -> Span<Self> {}
+
     // fn tag(self, u: Span) -> Spanned<Self> where Self: Sized + std::fmt::Debug { Spanned(self, u) }
 }
 
@@ -38,3 +40,10 @@ macro_rules! choice {
       $start $(.or($rest))*
     }}
   }
+
+#[macro_export]
+macro_rules! choice_just {
+    ($start:expr, $($rest:expr),*) => {
+        just($start)$(.or(just($rest)))*
+    };
+}

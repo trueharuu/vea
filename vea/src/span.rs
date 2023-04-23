@@ -1,6 +1,7 @@
 use chumsky::span::SimpleSpan;
 use std::fmt::Debug;
 
+#[allow(clippy::module_name_repetitions)]
 pub type RawSpan = SimpleSpan<usize>;
 
 pub type RawSpanned<T> = (T, RawSpan);
@@ -9,10 +10,13 @@ pub struct Span<T>(pub T, pub RawSpan);
 
 impl<T> From<RawSpanned<T>> for Span<T> {
     fn from(value: RawSpanned<T>) -> Self {
-        Span(value.0, value.1)
+        Self(value.0, value.1)
     }
 }
 
+impl<T> Copy for Span<T> where T: Copy {}
+
+#[allow(clippy::expl_impl_clone_on_copy)]
 impl<T> Clone for Span<T>
 where
     T: Clone,

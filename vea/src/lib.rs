@@ -1,5 +1,17 @@
-#![warn(clippy::all)]
-
+// #![warn(clippy::cargo)]
+#![warn(clippy::complexity)]
+#![warn(clippy::correctness)]
+// #![warn(clippy::deprecated)]
+#![warn(clippy::nursery)]
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
+    clippy::too_many_lines
+)]
+#![warn(clippy::perf)]
+#![warn(clippy::style)]
+#![warn(clippy::suspicious)]
 use std::io::Write;
 
 use ariadne::sources;
@@ -25,8 +37,11 @@ pub mod literal;
 pub mod parser;
 pub mod span;
 pub mod special_chars;
+#[cfg(test)]
+mod tests;
 
 pub use chumsky;
+#[must_use]
 pub fn lex(src: &str) -> (Option<Vec<Span<lexer::Token>>>, String) {
     let oe = lexer().parse(src).into_output_errors();
 
@@ -52,11 +67,12 @@ pub fn lex(src: &str) -> (Option<Vec<Span<lexer::Token>>>, String) {
     (oe.0, stdo)
 }
 
+#[must_use]
 pub fn parse<'t>(
     src: &str,
-    a: Vec<Span<lexer::Token<'t>>>,
+    b: &[Span<lexer::Token<'t>>],
 ) -> (Option<Vec<Span<ast::Expr<'t>>>>, String) {
-    let a = a.into_iter().map(|x| x.0).collect::<Vec<_>>();
+    let a = b.iter().map(|x| x.0).collect::<Vec<_>>();
     let p = parser().parse(a.as_slice()).into_output_errors();
 
     let mut stdo = String::new();
@@ -65,13 +81,16 @@ pub fn parse<'t>(
         .into_iter()
         .map(|x: _| x.map_token(|c: _| format!("{c:?}")))
         .for_each(|x: _| {
-            Report::build(ReportKind::Error, "test.vea", x.span().start)
+            Report::build(ReportKind::Error, "test.vea", b[x.span().start].1.start)
                 // .with_config(Config::default().with_char_set(CharSet::Ascii))
                 .with_message(x.to_string())
                 .with_label(
-                    Label::new(("test.vea", x.span().into_range()))
-                        .with_message(x.reason().to_string())
-                        .with_color(Color::Red),
+                    Label::new((
+                        "test.vea",
+                        b[x.span().start].1.start..b[x.span().end - 1].1.end,
+                    ))
+                    .with_message(x.reason().to_string())
+                    .with_color(Color::Red),
                 )
                 .finish()
                 .write_for_stdout(sources([("test.vea", src)]), unsafe { stdo.as_mut_vec() })
@@ -81,18 +100,20 @@ pub fn parse<'t>(
     (p.0, stdo)
 }
 
-pub fn interp(src: &str, p: Vec<Span<ast::Expr>>) -> String {
-    let e = exec(p);
+#[must_use]
+pub fn interp(src: &str, t: &[Span<lexer::Token<'_>>], p: Vec<Span<ast::Expr>>) -> String {
+    let mut env = interpreter::Env::default();
+    let e = exec(p, &mut env);
 
     let mut stdo = String::new();
 
     if let Err(Span(x, y)) = &e {
         // e.into_iter().for_each(|(x, y)| {
-        Report::build(ReportKind::Error, "test.vea", y.start)
+        Report::build(ReportKind::Error, "test.vea", t[y.start].1.start)
             // .with_config(Config::default().with_char_set(CharSet::Ascii))
             .with_message(x.clone())
             .with_label(
-                Label::new(("test.vea", y.into_range()))
+                Label::new(("test.vea", t[y.start].1.start..t[y.end - 1].1.end))
                     .with_message(x)
                     .with_color(Color::Red),
             )
@@ -107,6 +128,7 @@ pub fn interp(src: &str, p: Vec<Span<ast::Expr>>) -> String {
     stdo
 }
 
+#[must_use]
 pub fn main(src: &str) -> String {
     let mut stdo = String::new();
 
@@ -153,7 +175,7 @@ pub fn main(src: &str) -> String {
         //             .unwrap();
         //     });
 
-        let p = parse(src, a);
+        let p = parse(src, a.as_slice());
 
         stdo += &p.1;
 
@@ -177,7 +199,7 @@ pub fn main(src: &str) -> String {
             //     write!(&mut stdo, "{}", p.stdout).unwrap();
             // }
 
-            let m = interp(src, p);
+            let m = interp(src, a.as_slice(), p);
 
             stdo += &m;
         }

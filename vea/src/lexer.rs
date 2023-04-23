@@ -3,7 +3,9 @@ use std::fmt::Display;
 use chumsky::prelude::*;
 
 use crate::choice;
+use crate::choice_just;
 use crate::span::Span;
+use crate::special_chars;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub enum Token<'a> {
@@ -85,23 +87,23 @@ pub fn lexer<'s>(
         .labelled("string");
 
     let op: _ = choice! {
-        just("!=").to(Token::Ne),
-        just("==").to(Token::EqEq),
-        just(">=").to(Token::Ge),
-        just("<=").to(Token::Le),
+        choice_just! { "!=", special_chars::NOT_EQUAL_TO }.to(Token::Ne),
+        choice_just! { "==", special_chars::IDENTICAL_TO }.to(Token::EqEq),
+        choice_just! { ">=", special_chars::GREATER_THAN_OR_EQUAL_TO }.to(Token::Ge),
+        choice_just! { "<=", special_chars::LESS_THAN_OR_EQUAL_TO }.to(Token::Le),
         just('+').to(Token::Plus),
         just('-').to(Token::Minus),
-        just('*').to(Token::Star),
-        just('/').to(Token::Slash),
+        choice_just! { "*", special_chars::MULTIPLICATION_SIGN }.to(Token::Star),
+        choice_just! { "/", special_chars::DIVISION_SIGN }.to(Token::Slash),
         just('=').to(Token::Eq),
         just('!').to(Token::Bang),
         just('_').to(Token::Underscore),
         just('>').to(Token::Gt),
         just('<').to(Token::Lt),
-        just('~').to(Token::Tilde),
-        just('|').to(Token::Pipe),
-        just('&').to(Token::And),
-        just('^').to(Token::Caret),
+        choice_just! { "~", special_chars::NOT_SIGN }.to(Token::Tilde),
+        choice_just! { "|", special_chars::LOGICAL_OR }.to(Token::Pipe),
+        choice_just! { "&", special_chars::LOGICAL_AND }.to(Token::And),
+        choice_just! { "^", special_chars::XOR }.to(Token::Caret),
         just('?').to(Token::Question),
         just('%').to(Token::Percent)
     }
@@ -123,11 +125,11 @@ pub fn lexer<'s>(
 
     let kw: _ = choice! {
         just("let").to(Token::Let),
-        just("if").to(Token::Let),
-        just("else").to(Token::Let),
-        just("true").to(Token::Let),
-        just("false").to(Token::Let),
-        just("print").to(Token::Let)
+        just("if").to(Token::If),
+        just("else").to(Token::Else),
+        just("true").to(Token::True),
+        just("false").to(Token::False),
+        just("print").to(Token::Print)
     }
     .boxed()
     .labelled("keyword");
@@ -148,7 +150,7 @@ pub fn lexer<'s>(
         .labelled("token");
 
     token
-        .map_with_span(|tok, span| (tok, span).into())
+        .map_with_span(Span)
         .padded_by(comment.repeated())
         .padded()
         .recover_with(skip_then_retry_until(any().ignored(), end()))

@@ -1,3 +1,4 @@
+use crate::common::VeaErr;
 use crate::lexer::Token;
 use crate::literal::Literal;
 use crate::span::Span;
@@ -41,10 +42,93 @@ pub enum Expr<'a> {
         other: Option<Box<Span<Self>>>,
     },
 
+    While {
+        while_token: Span<Token<'a>>,
+        condition: Box<Span<Self>>,
+        then: Box<Span<Self>>,
+    },
+
     Let {
         let_token: Span<Token<'a>>,
         ident: Span<&'a str>,
         eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    Assign {
+        ident: Span<&'a str>,
+        eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    AddAssign {
+        ident: Span<&'a str>,
+        plus_eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    SubAssign {
+        ident: Span<&'a str>,
+        minus_eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    MulAssign {
+        ident: Span<&'a str>,
+        star_eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    DivAssign {
+        ident: Span<&'a str>,
+        slash_eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    RemAssign {
+        ident: Span<&'a str>,
+        percent_eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    ShlAssign {
+        ident: Span<&'a str>,
+        shl_eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    ShrAssign {
+        ident: Span<&'a str>,
+        shr_eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    AndAssign {
+        ident: Span<&'a str>,
+        and_eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    OrAssign {
+        ident: Span<&'a str>,
+        pipe_eq_token: Span<Token<'a>>,
+        expr: Box<Span<Self>>,
+        semi_token: Span<Token<'a>>,
+    },
+
+    XorAssign {
+        ident: Span<&'a str>,
+        caret_eq_token: Span<Token<'a>>,
         expr: Box<Span<Self>>,
         semi_token: Span<Token<'a>>,
     },
@@ -83,6 +167,42 @@ pub enum Expr<'a> {
         rhs: Box<Span<Self>>,
     },
 
+    Rem {
+        lhs: Box<Span<Self>>,
+        percent_token: Span<Token<'a>>,
+        rhs: Box<Span<Self>>,
+    },
+
+    Shl {
+        lhs: Box<Span<Self>>,
+        shl_token: Span<Token<'a>>,
+        rhs: Box<Span<Self>>,
+    },
+
+    Shr {
+        lhs: Box<Span<Self>>,
+        shr_token: Span<Token<'a>>,
+        rhs: Box<Span<Self>>,
+    },
+
+    And {
+        lhs: Box<Span<Self>>,
+        and_token: Span<Token<'a>>,
+        rhs: Box<Span<Self>>,
+    },
+
+    Or {
+        lhs: Box<Span<Self>>,
+        pipe_token: Span<Token<'a>>,
+        rhs: Box<Span<Self>>,
+    },
+
+    Xor {
+        lhs: Box<Span<Self>>,
+        caret_token: Span<Token<'a>>,
+        rhs: Box<Span<Self>>,
+    },
+
     Eq {
         lhs: Box<Span<Self>>,
         eqeq_token: Span<Token<'a>>,
@@ -118,6 +238,8 @@ pub enum Expr<'a> {
         le_token: Span<Token<'a>>,
         rhs: Box<Span<Self>>,
     },
+
+    Error(VeaErr),
 
     #[default]
     None,

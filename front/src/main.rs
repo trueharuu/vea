@@ -46,7 +46,14 @@ pub type Context<'a> = poise::Context<'a, Data, Error>;
 pub type Result = std::result::Result<(), Error>;
 
 #[poise::command(prefix_command)]
-async fn lex(context: Context<'_>, src: CodeBlock) -> Result {
+async fn lex(context: Context<'_>, esrc: Option<CodeBlock>) -> Result {
+    let src = if let Some(e) = esrc {
+        e
+    } else {
+        context.say("code?".to_owned()).await?;
+        return Ok(());
+    };
+
     let l = vea::lex(&src.code);
 
     if !l.1.is_empty() {
@@ -68,7 +75,13 @@ async fn lex(context: Context<'_>, src: CodeBlock) -> Result {
 }
 
 #[poise::command(prefix_command)]
-async fn ast(context: Context<'_>, src: CodeBlock) -> Result {
+async fn ast(context: Context<'_>, esrc: Option<CodeBlock>) -> Result {
+    let src = if let Some(e) = esrc {
+        e
+    } else {
+        context.say("code?".to_owned()).await?;
+        return Ok(());
+    };
     let l = vea::lex(&src.code);
 
     if !l.1.is_empty() {
@@ -78,7 +91,7 @@ async fn ast(context: Context<'_>, src: CodeBlock) -> Result {
     }
 
     if let Some(t) = l.0 {
-        let x = vea::parse(&src.code, t);
+        let x = vea::parse(&src.code, &t);
 
         if !x.1.is_empty() {
             context
@@ -95,7 +108,13 @@ async fn ast(context: Context<'_>, src: CodeBlock) -> Result {
 }
 
 #[poise::command(prefix_command)]
-async fn vea(context: Context<'_>, src: CodeBlock) -> Result {
+async fn vea(context: Context<'_>, esrc: Option<CodeBlock>) -> Result {
+    let src = if let Some(e) = esrc {
+        e
+    } else {
+        context.say("code?".to_owned()).await?;
+        return Ok(());
+    };
     let l = vea::lex(&src.code);
 
     if !l.1.is_empty() {
@@ -105,7 +124,7 @@ async fn vea(context: Context<'_>, src: CodeBlock) -> Result {
     }
 
     if let Some(t) = l.0 {
-        let x = vea::parse(&src.code, t.clone());
+        let x = vea::parse(&src.code, &t.clone());
 
         dbg!(&x);
 
@@ -116,7 +135,7 @@ async fn vea(context: Context<'_>, src: CodeBlock) -> Result {
         }
 
         if let Some(p) = x.0 {
-            let m = vea::interp(&src.code, t, p);
+            let m = vea::interp(&src.code, &t, p);
             if !m.is_empty() {
                 context.say(format!("```ansi\n{m}\n```")).await?;
             }

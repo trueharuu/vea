@@ -1,10 +1,7 @@
-use std::fmt::Display;
-use std::ops::Add;
-use std::ops::Div;
-use std::ops::Mul;
-use std::ops::Neg;
-use std::ops::Not;
-use std::ops::Sub;
+use std::{
+    fmt::Display,
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub},
+};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Literal {
@@ -180,6 +177,105 @@ impl Div for Literal {
 
             (lhs, rhs) => Err(format!(
                 "cannot divide `{} / {}`",
+                lhs.type_of(),
+                rhs.type_of()
+            )),
+        }
+    }
+}
+
+impl Rem for Literal {
+    type Output = Result<Self, String>;
+    fn rem(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(lhs), Self::Integer(rhs)) => {
+                if rhs == 0 {
+                    return Err("cannot divide by zero".to_string());
+                }
+
+                Ok(Self::Integer(lhs % rhs))
+            }
+
+            (lhs, rhs) => Err(format!(
+                "cannot get remainder for `{} % {}`",
+                lhs.type_of(),
+                rhs.type_of()
+            )),
+        }
+    }
+}
+
+impl Shl for Literal {
+    type Output = Result<Self, String>;
+    fn shl(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(lhs), Self::Integer(rhs)) => Ok(Self::Integer(lhs << rhs)),
+
+            (lhs, rhs) => Err(format!(
+                "cannot bit-shift-left `{} << {}`",
+                lhs.type_of(),
+                rhs.type_of()
+            )),
+        }
+    }
+}
+
+impl Shr for Literal {
+    type Output = Result<Self, String>;
+    fn shr(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(lhs), Self::Integer(rhs)) => Ok(Self::Integer(lhs >> rhs)),
+
+            (lhs, rhs) => Err(format!(
+                "cannot bit-shift-right `{} >> {}`",
+                lhs.type_of(),
+                rhs.type_of()
+            )),
+        }
+    }
+}
+
+impl BitAnd for Literal {
+    type Output = Result<Self, String>;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(lhs), Self::Integer(rhs)) => Ok(Self::Integer(lhs & rhs)),
+            (Self::Bool(lhs), Self::Bool(rhs)) => Ok(Self::Bool(lhs & rhs)),
+
+            (lhs, rhs) => Err(format!(
+                "cannot bit-and `{} & {}`",
+                lhs.type_of(),
+                rhs.type_of()
+            )),
+        }
+    }
+}
+
+impl BitOr for Literal {
+    type Output = Result<Self, String>;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(lhs), Self::Integer(rhs)) => Ok(Self::Integer(lhs | rhs)),
+            (Self::Bool(lhs), Self::Bool(rhs)) => Ok(Self::Bool(lhs | rhs)),
+
+            (lhs, rhs) => Err(format!(
+                "cannot bit-or `{} | {}`",
+                lhs.type_of(),
+                rhs.type_of()
+            )),
+        }
+    }
+}
+
+impl BitXor for Literal {
+    type Output = Result<Self, String>;
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(lhs), Self::Integer(rhs)) => Ok(Self::Integer(lhs ^ rhs)),
+            (Self::Bool(lhs), Self::Bool(rhs)) => Ok(Self::Bool(lhs ^ rhs)),
+
+            (lhs, rhs) => Err(format!(
+                "cannot bit-xor `{} ^ {}`",
                 lhs.type_of(),
                 rhs.type_of()
             )),

@@ -22,7 +22,9 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
         let ident = select(|x, s| match x {
             Token::Ident(x) => Some(Span(x, s)),
             _ => None,
-        });
+        })
+        .boxed()
+        .labelled("ident");
 
         let inline = recursive(|z| {
             let atom = select(move |x, s| match x {
@@ -39,7 +41,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                 }),
 
                 Token::String(z) => Some(Expr::Literal {
-                    value: Literal::String(z.to_owned()),
+                    value: Literal::String(z),
                 }),
 
                 _ => None,
@@ -115,6 +117,18 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                         Expr::Div {
                             lhs: l.rebox(),
                             slash_token: t,
+                            rhs: r.rebox(),
+                        }.t(s)
+                    }),
+
+                atom
+                    .clone()
+                    .then(just(Token::Percent).map_with_span(Span))
+                    .then(atom.clone())
+                    .map_with_span(|((l, t), r), s| {
+                        Expr::Rem {
+                            lhs: l.rebox(),
+                            percent_token: t,
                             rhs: r.rebox(),
                         }.t(s)
                     })
@@ -196,13 +210,71 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                     })
             };
 
+            let bitwise: _ = choice! {
+                atom
+                    .clone()
+                    .then(just(Token::Shl).map_with_span(Span))
+                    .then(atom.clone())
+                    .map_with_span(|((l, t), r), s| {
+                        Expr::Shl {
+                            lhs: l.rebox(),
+                            shl_token: t,
+                            rhs: r.rebox(),
+                        }.t(s)
+                    }),
+                atom
+                    .clone()
+                    .then(just(Token::Shr).map_with_span(Span))
+                    .then(atom.clone())
+                    .map_with_span(|((l, t), r), s| {
+                        Expr::Shr {
+                            lhs: l.rebox(),
+                            shr_token: t,
+                            rhs: r.rebox(),
+                        }.t(s)
+                    }),
+                atom
+                    .clone()
+                    .then(just(Token::And).map_with_span(Span))
+                    .then(atom.clone())
+                    .map_with_span(|((l, t), r), s| {
+                        Expr::And {
+                            lhs: l.rebox(),
+                            and_token: t,
+                            rhs: r.rebox(),
+                        }.t(s)
+                    }),
+                atom
+                    .clone()
+                    .then(just(Token::Pipe).map_with_span(Span))
+                    .then(atom.clone())
+                    .map_with_span(|((l, t), r), s| {
+                        Expr::Or {
+                            lhs: l.rebox(),
+                            pipe_token: t,
+                            rhs: r.rebox(),
+                        }.t(s)
+                    }),
+                atom
+                    .clone()
+                    .then(just(Token::Caret).map_with_span(Span))
+                    .then(atom.clone())
+                    .map_with_span(|((l, t), r), s| {
+                        Expr::Xor {
+                            lhs: l.rebox(),
+                            caret_token: t,
+                            rhs: r.rebox(),
+                        }.t(s)
+                    })
+            };
+
             // precedence rocks!
-            choice! { eq, cmp, product, sum, unary, atom }
+            choice! { eq, cmp, product, bitwise, sum, unary, atom }
         });
 
         let kwlet: _ = just(Token::Let)
             .map_with_span(Span)
-            .then(ident)
+            .then(ident.clone())
             .then(just(Token::Eq).map_with_span(Span))
             .then(inline.clone())
             .then(just(Token::Semi).map_with_span(Span))
@@ -217,6 +289,42 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                 .t(s)
             });
 
+        let assign_to = {
+            macro_rules! make {
+                (* $separator:path, $expr:path, $id:ident) => {
+                    ident
+                        .clone()
+                        .then(just($separator).map_with_span(Span))
+                        .then(inline.clone())
+                        .then(just(Token::Semi).map_with_span(Span))
+                        .map_with_span(|(((a, b), c), d), s| {
+                            $expr {
+                                ident: a,
+                                $id: b,
+                                expr: c.rebox(),
+                                semi_token: d,
+                            }
+                            .t(s)
+                        })
+                };
+            }
+
+            let assignment: _ = make!(*Token::Eq, Expr::Assign, eq_token);
+            let add_assign: _ = make!(*Token::PlusEq, Expr::AddAssign, plus_eq_token);
+            let sub_assign: _ = make!(*Token::MinusEq, Expr::SubAssign, minus_eq_token);
+            let mul_assign: _ = make!(*Token::StarEq, Expr::MulAssign, star_eq_token);
+            let div_assign: _ = make!(*Token::SlashEq, Expr::DivAssign, slash_eq_token);
+            let rem_assign: _ = make!(*Token::PercentEq, Expr::RemAssign, percent_eq_token);
+
+            let shl_assign: _ = make!(*Token::ShlEq, Expr::AddAssign, plus_eq_token);
+            let shr_assign: _ = make!(*Token::ShrEq, Expr::SubAssign, minus_eq_token);
+            let and_assign: _ = make!(*Token::AndEq, Expr::MulAssign, star_eq_token);
+            let oor_assign: _ = make!(*Token::PipeEq, Expr::DivAssign, slash_eq_token);
+            let xor_assign: _ = make!(*Token::CaretEq, Expr::RemAssign, percent_eq_token);
+
+            choice! { assignment, add_assign, sub_assign, mul_assign, div_assign, rem_assign, shl_assign, shr_assign, and_assign, oor_assign, xor_assign }
+        };
+
         let block = just(Token::LeftBrace)
             .map_with_span(Span)
             .then(expr.clone())
@@ -226,6 +334,19 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                     left_brace: lb,
                     right_brace: rb,
                     exprs: e,
+                }
+                .t(s)
+            });
+
+        let kwwhile = just(Token::While)
+            .map_with_span(Span)
+            .then(inline.clone())
+            .then(block.clone())
+            .map_with_span(|((while_token, c), t), s| {
+                Expr::While {
+                    while_token,
+                    condition: c.rebox(),
+                    then: t.rebox(),
                 }
                 .t(s)
             });
@@ -285,7 +406,13 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                 .t(s)
             });
 
-        choice! { block, kwlet, kwif, kwprint, inline }
+        let errs = select(move |x, _| match x {
+            Token::Error(e) => Some(Expr::Error(e)),
+            _ => None,
+        })
+        .map_with_span(Span);
+
+        choice! { errs, block, kwlet, assign_to, kwif, kwwhile, kwprint, inline }
             .repeated()
             .collect()
     });

@@ -63,6 +63,7 @@ pub fn interp(program: &mut Env, one: Span<Expr<'_>>) -> Result<Literal, Span<St
                 .to_string()
                 .t(full_span),
             VeaErr::InvalidStringEscape => "invalid string escape".to_string().t(full_span),
+            // VeaErr::InvalidQuotationMark(q) => format!("").t(full_span),
         }),
         Expr::Access { ident } => {
             let value = program.values.get(ident.0);

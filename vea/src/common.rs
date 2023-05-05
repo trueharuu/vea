@@ -52,6 +52,7 @@ macro_rules! choice_just {
 pub enum VeaErr {
     IntegerOverflow,
     InvalidStringEscape,
+    // InvalidQuotationMark(char),
 }
 
 #[macro_export]

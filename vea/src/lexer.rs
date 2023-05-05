@@ -1,18 +1,19 @@
 use std::fmt::Display;
 
+use chumsky::error::Rich;
 use chumsky::prelude::*;
 
 use crate::choice;
 use crate::common::VeaErr;
 use crate::span::Span;
-use crate::void;
+// use crate::void;
 // use crate::special_chars;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub enum Token<'a> {
     Ident(&'a str), // abc
     Number(i64),    // 123
-    String(String), // "abc"
+    String(String), // 'abc'
 
     Let,   // let
     If,    // if
@@ -22,6 +23,8 @@ pub enum Token<'a> {
     False, // false
     While, // while
     For,   // for
+
+    Quote, // '
 
     Plus,       // +
     PlusEq,     // +=
@@ -81,8 +84,7 @@ impl<'a> Display for Token<'a> {
 }
 
 pub fn lexer<'s>(
-) -> impl Parser<'s, &'s str, Vec<Span<Token<'s>>>, chumsky::extra::Err<chumsky::error::Rich<'s, char>>>
-{
+) -> impl Parser<'s, &'s str, Vec<Span<Token<'s>>>, chumsky::extra::Err<Rich<'s, char>>> {
     let num: _ = text::int(10)
         .from_str()
         .map(|x| x.map_or(Token::Error(VeaErr::IntegerOverflow), Token::Number))
@@ -95,37 +97,15 @@ pub fn lexer<'s>(
         .boxed()
         .labelled("ident");
 
-    let string: _ = just('\'')
+    let quote_char = just("\'\"“”„«»‚‘’‹›").try_map(|x, s| match x {
+        "\'" => Ok(Token::Quote),
+        q => Err(Rich::custom(s, format!("expected invalid quote mark for string\n\t= help: use `'` instead of `{q}` to delimit strings"))),
+    });
+
+    let string: _ = quote_char
         .ignore_then(none_of('\'').repeated())
-        .then_ignore(just('\''))
-        .map_slice(|x: &str| {
-            let mut buf = String::new();
-            let mut idx = 0;
-            let chars = x.chars().collect::<Vec<_>>();
-
-            while idx < chars.len() {
-                let c = chars[idx];
-                match c {
-                    '\\' => match chars.get({
-                        idx += 1;
-                        idx
-                    }) {
-                        Some('n') => void!(buf += "\n"),
-                        Some('t') => void!(buf += "\t"),
-                        Some('r') => void!(buf += "\r"), // BAD
-                        Some('0') => void!(buf += "\0"),
-                        Some('\\') => void!(buf += "\\"),
-                        Some('\'') => void!(buf += "'"),
-
-                        _ => return Token::Error(VeaErr::InvalidStringEscape),
-                    },
-
-                    c => void!(buf += &c.to_string()),
-                }
-            }
-
-            Token::String(buf)
-        })
+        .then_ignore(quote_char)
+        .map_slice(|x: &str| Token::String(x.to_owned()))
         .boxed()
         .labelled("string");
 

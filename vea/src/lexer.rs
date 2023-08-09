@@ -168,6 +168,7 @@ pub fn lexer<'s>(
         just("for").to(Token::For),
         just("fn").to(Token::Fn),
         just("return").to(Token::Return),
+        just("yield").to(Token::Return),
     }
     .boxed()
     .labelled("keyword");

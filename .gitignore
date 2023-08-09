@@ -1,7 +1,3 @@
-target/
-node_modules/
-
-# Added by cargo
-
-/target
-.env
+**/target
+**/Cargo.lock
+**/.env

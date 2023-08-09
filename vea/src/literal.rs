@@ -3,15 +3,20 @@ use std::{
     ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub},
 };
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Literal {
+use crate::{ast::Expr, span::Span, env::Env};
+
+#[derive(Clone, Debug)]
+pub enum Literal<'a> {
     Bool(bool),
     Integer(i64),
     String(String),
+    // name, args, body
+    Fn(Span<&'a str>, Vec<Span<&'a str>>, Box<Span<Expr<'a>>>),
+    Object(Span<&'a str>, Env<'a>),
     None,
 }
 
-impl Display for Literal {
+impl<'a> Display for Literal<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -20,19 +25,23 @@ impl Display for Literal {
                 Self::Bool(z) => z.to_string(),
                 Self::Integer(z) => z.to_string(),
                 Self::String(z) => z.to_string(),
+                Self::Fn(z, a, ..) => format!("fn {}({})", z.0, a.len()),
+                Self::Object(z, ..) => z.0.to_string(),
                 Self::None => "_".to_string(),
             }
         )
     }
 }
 
-impl Literal {
+impl<'a> Literal<'a> {
     #[must_use]
     pub fn type_of(&self) -> String {
         match self {
             Self::Bool(..) => "bool",
             Self::Integer(..) => "int",
             Self::String(..) => "str",
+            Self::Fn(..) => "fn",
+            Self::Object(z, ..) => z.0,
             Self::None => "_",
         }
         .to_owned()
@@ -118,7 +127,7 @@ impl Literal {
     }
 }
 
-impl Add for Literal {
+impl<'a> Add for Literal<'a> {
     type Output = Result<Self, String>;
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -133,7 +142,7 @@ impl Add for Literal {
     }
 }
 
-impl Sub for Literal {
+impl<'a> Sub for Literal<'a> {
     type Output = Result<Self, String>;
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -148,7 +157,7 @@ impl Sub for Literal {
     }
 }
 
-impl Mul for Literal {
+impl<'a> Mul for Literal<'a> {
     type Output = Result<Self, String>;
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -163,7 +172,7 @@ impl Mul for Literal {
     }
 }
 
-impl Div for Literal {
+impl<'a> Div for Literal<'a> {
     type Output = Result<Self, String>;
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -184,7 +193,7 @@ impl Div for Literal {
     }
 }
 
-impl Rem for Literal {
+impl<'a> Rem for Literal<'a> {
     type Output = Result<Self, String>;
     fn rem(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -205,7 +214,7 @@ impl Rem for Literal {
     }
 }
 
-impl Shl for Literal {
+impl<'a> Shl for Literal<'a> {
     type Output = Result<Self, String>;
     fn shl(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -220,7 +229,7 @@ impl Shl for Literal {
     }
 }
 
-impl Shr for Literal {
+impl<'a> Shr for Literal<'a> {
     type Output = Result<Self, String>;
     fn shr(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -235,7 +244,7 @@ impl Shr for Literal {
     }
 }
 
-impl BitAnd for Literal {
+impl<'a> BitAnd for Literal<'a> {
     type Output = Result<Self, String>;
     fn bitand(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -251,7 +260,7 @@ impl BitAnd for Literal {
     }
 }
 
-impl BitOr for Literal {
+impl<'a> BitOr for Literal<'a> {
     type Output = Result<Self, String>;
     fn bitor(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -267,7 +276,7 @@ impl BitOr for Literal {
     }
 }
 
-impl BitXor for Literal {
+impl<'a> BitXor for Literal<'a> {
     type Output = Result<Self, String>;
     fn bitxor(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -283,7 +292,7 @@ impl BitXor for Literal {
     }
 }
 
-impl Neg for Literal {
+impl<'a> Neg for Literal<'a> {
     type Output = Result<Self, String>;
     fn neg(self) -> Self::Output {
         match self {
@@ -294,7 +303,7 @@ impl Neg for Literal {
     }
 }
 
-impl Not for Literal {
+impl<'a> Not for Literal<'a> {
     type Output = Result<Self, String>;
     fn not(self) -> Self::Output {
         match self {

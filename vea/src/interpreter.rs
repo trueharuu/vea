@@ -1,131 +1,213 @@
-use std::collections::HashMap;
+use chumsky::span::SimpleSpan;
 
-use crate::ast::Expr;
-use crate::common::Tag;
-use crate::common::VeaErr;
-use crate::literal::Literal;
+use crate::{ast::Expr, common::Tag, env::Env, literal::Literal, span::Span};
+use std::{cell::RefCell, rc::Rc};
 
-use crate::span::Span;
-
-#[derive(Debug)]
-pub struct Env {
-    pub values: HashMap<String, Literal>,
-    pub stdout: String,
-    pub err: Vec<Span<String>>,
+#[must_use]
+#[inline]
+pub fn none<'a>() -> Rc<RefCell<Literal<'a>>> {
+    Rc::new(RefCell::new(Literal::None))
 }
 
-impl Env {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            err: Vec::new(),
-            stdout: String::new(),
-            values: HashMap::default(),
-        }
-    }
-}
-
-impl Default for Env {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub fn interp(program: &mut Env, one: Span<Expr<'_>>) -> Result<Literal, Span<String>> {
+pub fn interp<'a>(
+    program: &mut Env<'a>,
+    one: Span<Expr<'a>>,
+) -> Result<Rc<RefCell<Literal<'a>>>, Span<String>> {
     let Span(one, full_span) = one;
-    // dbg!(&one);
 
-    macro_rules! short {
-        (assign $T:tt $ident:expr, $expr:expr) => {
-        {
-            if !program.values.contains_key($ident.0) {
-                return Err(format!("variable {} does not exist", $ident.0).t($ident.1));
-            }
-
-            let cpy = program.values.clone();
-            let current = cpy.get($ident.0);
-            let rhs = interp(program, *$expr)?;
-            let after = (current.unwrap().clone() $T rhs).map_err(|x| x.t(full_span))?;
-
-            program.values.insert($ident.0.to_owned(), after);
-            Ok(Literal::None)
-        }
+    macro_rules! mm {
+        ($t:tt $program:ident, $full_span:ident, $lhs:ident, $rhs:ident) => {
+            (interp($program, *$lhs)?.borrow().clone() $t interp($program, *$rhs)?.borrow().clone())
+        .map(|x| Rc::new(RefCell::new(x)))
+        .map_err(|x| x.t($full_span))
         };
 
-        (just $T:tt $lhs:expr, $rhs:expr) => {
-            {(interp(program, *$lhs)? $T interp(program, *$rhs)?).map_err(|x| x.t(full_span))}
-        }
+        (* $t:tt $program:ident, $full_span:ident, $ident:ident, $expr:ident) => {{
+            let lhs = program.get(&$ident.0.to_string());
+
+            if let Some(lh) = lhs {
+                let lhv = lh.borrow().clone();
+                let rhv = interp(program, *$expr)?;
+                let out = (lhv $t rhv.borrow().clone()).map_err(|x| x.t($full_span))?;
+                program.set(&$ident.0.to_string(), Rc::new(RefCell::new(out)));
+            } else {
+                return Err(format!("variable `{}` does not exist", $ident.0).t($ident.1));
+            }
+
+            Ok(none())
+        }};
+
+        (= $id:ident, $program:ident, $full_span:ident, $lhs:ident, $rhs:ident) => {{
+            let lhv = interp($program, *$lhs)?.borrow().clone();
+            let rhv = interp($program, *$rhs)?.borrow().clone();
+
+            lhv.$id(rhv).map(|x| Rc::new(RefCell::new(x))).map_err(|x| x.t($full_span))
+        }}
+    }
+
+    // current branch is GONE
+    if program.retyet {
+        return Err("statement after `return` is never reached"
+            .to_string()
+            .t(full_span));
     }
 
     match one {
-        Expr::Error(e) => Err(match e {
-            VeaErr::IntegerOverflow => "this value cannot be stored as an integer"
-                .to_string()
-                .t(full_span),
-            VeaErr::InvalidStringEscape => "invalid string escape".to_string().t(full_span),
-            // VeaErr::InvalidQuotationMark(q) => format!("").t(full_span),
-        }),
+        Expr::Literal { value } => Ok(Rc::new(RefCell::new(value))),
         Expr::Access { ident } => {
-            let value = program.values.get(ident.0);
+            let value = program.get(&ident.0.to_string());
+            value.ok_or_else(|| format!("variable `{}` does not exist", ident.0).t(ident.1))
+        }
 
-            value.map_or_else(
-                || Err(format!("variable {} does not exist", ident.0).t(ident.1)),
-                |v| Ok(v.clone()),
-            )
+        Expr::Let { ident, expr, .. } => {
+            if program.has(&ident.0.to_string()) {
+                return Err(format!("variable `{}` already exists", ident.0).t(ident.1));
+            }
+
+            let value = interp(program, *expr)?;
+
+            program.assign(&ident.0.to_string(), value);
+
+            Ok(none())
+        }
+
+        Expr::Print { value, .. } => {
+            let val = interp(program, *value)?;
+            program.print(&val.borrow().to_string());
+            Ok(none())
+        }
+
+        Expr::Assign { ident, expr, .. } => {
+            if !program.has(&ident.0.to_string()) {
+                return Err(format!("variable `{}` does not exist", ident.0).t(ident.1));
+            }
+
+            let value = interp(program, *expr)?;
+            program.set(ident.0, value);
+
+            Ok(none())
+        }
+
+        Expr::Add { lhs, rhs, .. } => mm! { + program, full_span, lhs, rhs },
+        Expr::Sub { lhs, rhs, .. } => mm! { - program, full_span, lhs, rhs },
+        Expr::Mul { lhs, rhs, .. } => mm! { * program, full_span, lhs, rhs },
+        Expr::Div { lhs, rhs, .. } => mm! { / program, full_span, lhs, rhs },
+        Expr::Rem { lhs, rhs, .. } => mm! { % program, full_span, lhs, rhs },
+        Expr::And { lhs, rhs, .. } => mm! { & program, full_span, lhs, rhs },
+        Expr::Or { lhs, rhs, .. } => mm! { | program, full_span, lhs, rhs },
+        Expr::Xor { lhs, rhs, .. } => mm! { ^ program, full_span, lhs, rhs },
+        Expr::Shl { lhs, rhs, .. } => mm! { << program, full_span, lhs, rhs },
+        Expr::Shr { lhs, rhs, .. } => mm! { >> program, full_span, lhs, rhs },
+
+        Expr::AddAssign { ident, expr, .. } => mm! { * + program, full_span, ident, expr },
+        Expr::SubAssign { ident, expr, .. } => mm! { * - program, full_span, ident, expr },
+        Expr::MulAssign { ident, expr, .. } => mm! { * * program, full_span, ident, expr },
+        Expr::DivAssign { ident, expr, .. } => mm! { * / program, full_span, ident, expr },
+        Expr::RemAssign { ident, expr, .. } => mm! { * % program, full_span, ident, expr },
+        Expr::AndAssign { ident, expr, .. } => mm! { * & program, full_span, ident, expr },
+        Expr::OrAssign { ident, expr, .. } => mm! { * | program, full_span, ident, expr },
+        Expr::XorAssign { ident, expr, .. } => mm! { * ^ program, full_span, ident, expr },
+        Expr::ShlAssign { ident, expr, .. } => mm! { * << program, full_span, ident, expr },
+        Expr::ShrAssign { ident, expr, .. } => mm! { * >> program, full_span, ident, expr },
+
+        Expr::Eq { lhs, rhs, .. } => mm! { = req, program, full_span, lhs, rhs },
+        Expr::Ne { lhs, rhs, .. } => mm! { = rne, program, full_span, lhs, rhs },
+        Expr::Gt { lhs, rhs, .. } => mm! { = rgt, program, full_span, lhs, rhs },
+        Expr::Ge { lhs, rhs, .. } => mm! { = rge, program, full_span, lhs, rhs },
+        Expr::Lt { lhs, rhs, .. } => mm! { = rlt, program, full_span, lhs, rhs },
+        Expr::Le { lhs, rhs, .. } => mm! { = rle, program, full_span, lhs, rhs },
+
+        Expr::Neg { expr, .. } => (-interp(program, *expr)?.borrow().clone())
+            .map_err(|x| x.t(full_span))
+            .map(|x| Rc::new(RefCell::new(x))),
+
+        Expr::Not { expr, .. } => (!interp(program, *expr)?.borrow().clone())
+            .map_err(|x| x.t(full_span))
+            .map(|x| Rc::new(RefCell::new(x))),
+
+        Expr::Block { exprs, .. } => {
+            exec(
+                exprs,
+                &Rc::new(RefCell::new(Env::with_parent(
+                    None,
+                    Rc::new(RefCell::new(program.clone())),
+                ))),
+            )?;
+            Ok(none())
         }
 
         Expr::Group { expr, .. } => interp(program, *expr),
+        Expr::Error(value) => Err(value.to_string().t(full_span)),
 
-        Expr::Add { lhs, rhs, .. } => short!(just + lhs, rhs),
-        Expr::Sub { lhs, rhs, .. } => short!(just - lhs, rhs),
-        Expr::Mul { lhs, rhs, .. } => short!(just * lhs, rhs),
-        Expr::Div { lhs, rhs, .. } => short!(just / lhs, rhs),
-        Expr::Rem { lhs, rhs, .. } => short!(just % lhs, rhs),
-        Expr::And { lhs, rhs, .. } => short!(just & lhs, rhs),
-        Expr::Xor { lhs, rhs, .. } => short!(just ^ lhs, rhs),
-        Expr::Shl { lhs, rhs, .. } => short!(just << lhs, rhs),
-        Expr::Shr { lhs, rhs, .. } => short!(just >> lhs, rhs),
-        Expr::Or { lhs, rhs, .. } => short!(just | lhs, rhs),
+        Expr::FnCall {
+            access, arguments, ..
+        } => {
+            let value = interp(program, *access.clone())?.borrow().clone();
 
-        Expr::Eq { lhs, rhs, .. } => interp(program, *lhs)?
-            .req(interp(program, *rhs)?)
-            .map_err(|x| x.t(full_span)),
+            if let Literal::Fn(name, argv, bloc) = value {
+                let local = Rc::new(RefCell::new(Env::with_parent(
+                    Some(name.0.to_string()),
+                    Rc::new(RefCell::new(program.clone())),
+                )));
 
-        Expr::Ne { lhs, rhs, .. } => interp(program, *lhs)?
-            .rne(interp(program, *rhs)?)
-            .map_err(|x| x.t(full_span)),
+                if arguments.len() > argv.len() {
+                    return Err(format!(
+                        "fn `{}` expected {} arguments but got {}",
+                        name.0,
+                        argv.len(),
+                        arguments.len()
+                    )
+                    .t(arguments
+                        .get(argv.len())
+                        .map(|x| SimpleSpan::new(x.1.start, arguments.last().unwrap().1.end))
+                        .unwrap()));
+                }
 
-        Expr::Gt { lhs, rhs, .. } => interp(program, *lhs)?
-            .rgt(interp(program, *rhs)?)
-            .map_err(|x| x.t(full_span)),
+                for (i, arg) in argv.iter().enumerate() {
+                    let argr = arguments.get(i);
 
-        Expr::Lt { lhs, rhs, .. } => interp(program, *lhs)?
-            .rlt(interp(program, *rhs)?)
-            .map_err(|x| x.t(full_span)),
+                    if argr.is_none() {
+                        return Err(format!(
+                            "fn `{}` expected {} arguments but got {}",
+                            name.0,
+                            argv.len(),
+                            arguments.len()
+                        )
+                        .t(name.1));
+                    }
 
-        Expr::Ge { lhs, rhs, .. } => interp(program, *lhs)?
-            .rge(interp(program, *rhs)?)
-            .map_err(|x| x.t(full_span)),
+                    let actual = interp(program, argr.unwrap().clone())?;
 
-        Expr::Le { lhs, rhs, .. } => interp(program, *lhs)?
-            .rle(interp(program, *rhs)?)
-            .map_err(|x| x.t(full_span)),
+                    local.borrow_mut().set(arg.0, actual);
+                }
 
-        Expr::Block { exprs, .. } => {
-            let last = exprs.last();
-            if exprs.is_empty() {
-                return Ok(Literal::None);
+                if let Expr::Block { exprs, .. } = bloc.0 {
+                    exec(exprs, &local)?;
+
+                    if !local.borrow().retyet {
+                        return Err(format!("fn `{}` doesn't return anything", &name.0).t(name.1));
+                    }
+                } else {
+                    return Err(format!("fn `{}` has a magic non-block body", &name.0).t(bloc.1));
+                }
+                Ok(program.get_ret(&name.0.to_string()).unwrap_or_else(none))
+            } else {
+                Err("value is not a function".to_string().t(access.1))
             }
-
-            for i in &exprs[..exprs.len() - 1] {
-                interp(program, i.clone())?;
-            }
-
-            interp(program, last.unwrap().clone())
         }
 
-        Expr::None => Ok(Literal::None),
-        Expr::Literal { value } => Ok(value),
+        Expr::FnDecl {
+            name,
+            arguments,
+            block,
+            ..
+        } => {
+            program.set(
+                name.0,
+                Rc::new(RefCell::new(Literal::Fn(name, arguments, block))),
+            );
+            Ok(none())
+        }
 
         Expr::If {
             condition,
@@ -133,113 +215,71 @@ pub fn interp(program: &mut Env, one: Span<Expr<'_>>) -> Result<Literal, Span<St
             other,
             ..
         } => {
-            let cond = interp(program, *condition.clone())?;
-            if let Literal::Bool(real_cond) = cond {
-                if real_cond {
-                    interp(program, *then)
-                } else if let Some(else_cond) = other {
-                    interp(program, *else_cond)
-                } else {
-                    Ok(Literal::None)
+            let cond = interp(program, *condition.clone())?.borrow().clone();
+
+            if let Literal::Bool(b) = cond {
+                if b {
+                    interp(program, *then)?;
+                } else if let Some(o) = other {
+                    interp(program, *o)?;
                 }
+
+                Ok(none())
             } else {
-                return Err(format!(
-                    "condition in `if` statement must be of type `bool`, recieved `{}`",
-                    cond.type_of()
-                )
-                .t(condition.1));
+                Err("condition of an `if` statement must be of type `bool`"
+                    .to_string()
+                    .t(condition.1))
             }
         }
+
+        Expr::None => Ok(none()),
 
         Expr::While {
             condition, then, ..
         } => {
-            let mut single = interp(program, *condition.clone())?;
-            let mut ctr = 0;
-
-            dbg!(&then);
-
             loop {
-                // dbg!(&ctr);
-                if ctr > 2000 {
-                    return Err("maximum loop count reached".to_string().t(full_span));
-                }
+                let cond = interp(program, *condition.clone())?.borrow().clone();
 
-                if let Literal::Bool(rcond) = single {
-                    if rcond {
+                if let Literal::Bool(b) = cond {
+                    if b {
                         interp(program, *then.clone())?;
-                        single = interp(program, *condition.clone())?;
-                        ctr += 1;
                     } else {
                         break;
                     }
                 } else {
-                    return Err(format!(
-                        "condition in `while` statement must be of type `bool`, recieved `{}`\n\t= note: marked on iteration {}",
-                        single.type_of(), ctr
-                    )
-                    .t(condition.1));
+                    return Err("condition of an `while` statement must be of type `bool`"
+                        .to_string()
+                        .t(condition.1));
                 }
             }
-
-            Ok(Literal::None)
+            Ok(none())
         }
 
-        Expr::Let { ident, expr, .. } => {
-            let value = program.values.get(ident.0);
+        Expr::Return { value, .. } => {
+            let v = interp(program, *value)?;
 
-            if value.is_some() {
-                Err(format!("variable {} does already exists", ident.0).t(ident.1))
+            if let Some(mut parent) = program.parent.as_ref().map(|x| x.borrow_mut()) {
+                println!("return {:?} within {:?}", v, &program.name);
+                program.retyet = true;
+                let name = program.name.as_ref().cloned().unwrap();
+                parent.set_ret(&name, v);
+                Ok(none())
             } else {
-                let value = interp(program, *expr)?;
-                program.values.insert(ident.0.to_owned(), value);
-
-                Ok(Literal::None)
+                Err("used `return` statement outside of a `fn` block"
+                    .to_string()
+                    .t(full_span))
             }
-        }
-
-        Expr::Neg { expr, .. } => (-interp(program, *expr)?).map_err(|x| x.t(full_span)),
-
-        Expr::Not { expr, .. } => (-interp(program, *expr)?).map_err(|x| x.t(full_span)),
-
-        Expr::Print { value, .. } => {
-            let output = interp(program, *value)?;
-
-            program.stdout += &output.to_string();
-            Ok(output)
-        }
-
-        Expr::Assign { ident, expr, .. } => {
-            if !program.values.contains_key(ident.0) {
-                return Err(format!("variable {} does not exist", ident.0).t(ident.1));
-            }
-
-            let value = interp(program, *expr)?;
-            program.values.insert(ident.0.to_owned(), value);
-            Ok(Literal::None)
-        }
-
-        Expr::AddAssign { ident, expr, .. } => short!(assign + ident, expr),
-        Expr::SubAssign { ident, expr, .. } => short!(assign - ident, expr),
-        Expr::MulAssign { ident, expr, .. } => short!(assign * ident, expr),
-        Expr::DivAssign { ident, expr, .. } => short!(assign / ident, expr),
-        Expr::RemAssign { ident, expr, .. } => short!(assign % ident, expr),
-        Expr::AndAssign { ident, expr, .. } => short!(assign & ident, expr),
-        Expr::XorAssign { ident, expr, .. } => short!(assign ^ ident, expr),
-        Expr::ShlAssign { ident, expr, .. } => short!(assign << ident, expr),
-        Expr::ShrAssign { ident, expr, .. } => short!(assign >> ident, expr),
-        Expr::OrAssign { ident, expr, .. } => short!(assign | ident, expr),
-        // _ => Err("todo".to_owned().t(full_span)),
+        } // _ => Err("todo".to_owned().t(full_span)),
     }
 }
 
-pub fn exec<'a>(many: Vec<Span<Expr<'_>>>, env: &'a mut Env) -> Result<&'a mut Env, Span<String>> {
-    println!("env: {env:?}");
-
+pub fn exec<'a>(
+    many: Vec<Span<Expr<'a>>>,
+    env: &Rc<RefCell<Env<'a>>>,
+) -> Result<Env<'a>, Span<String>> {
     for i in many {
-        println!("{i:?}");
-        interp(env, i)?;
+        interp(&mut env.borrow_mut(), i)?;
     }
 
-    Ok(env)
+    Ok(env.borrow().clone())
 }

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::span::RawSpan;
 use crate::span::Span;
 
@@ -52,7 +54,21 @@ macro_rules! choice_just {
 pub enum VeaErr {
     IntegerOverflow,
     InvalidStringEscape,
-    // InvalidQuotationMark(char),
+    InvalidQuotationMark(char),
+}
+
+impl Display for VeaErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::IntegerOverflow => "integer overflow".to_string(),
+                Self::InvalidQuotationMark(c) => format!("invalid quote mark `{c}`"),
+                Self::InvalidStringEscape => "invalid string escape".to_string()
+            }
+        )
+    }
 }
 
 #[macro_export]

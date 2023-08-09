@@ -9,6 +9,3 @@ description = "language"
 [dependencies]
 chumsky = {version="1.0.0-alpha.0",features=["std", "spill-stack", "label"]}
 ariadne = { version = "*", features = ["auto-color"] }
-logos = "0.13.0"
-dbg-pls = { version = "0.3.5", features = ["pretty", "colors", "derive"] }
-no-panic = "0.1.22"

@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use chumsky::error::Rich;
 use chumsky::prelude::*;
 
@@ -15,25 +13,40 @@ pub enum Token<'a> {
     Number(i64),    // 123
     String(String), // 'abc'
 
-    Let,   // let
-    If,    // if
-    Else,  // else
-    Print, // print
-    True,  // true
-    False, // false
-    While, // while
-    For,   // for
+    Let,    // let
+    If,     // if
+    Else,   // else
+    Print,  // print
+    True,   // true
+    False,  // false
+    While,  // while
+    For,    // for
+    Fn,     // fn
+    Return, // return
 
     Quote, // '
 
-    Plus,       // +
-    PlusEq,     // +=
-    Minus,      // -
-    MinusEq,    // -=
-    Star,       // *
-    StarEq,     // *=
-    Slash,      // /
-    SlashEq,    // /=
+    Plus,      // +
+    PlusEq,    // +=
+    Minus,     // -
+    MinusEq,   // -=
+    Star,      // *
+    StarEq,    // *=
+    Slash,     // /
+    SlashEq,   // /=
+    Pipe,      // |
+    PipeEq,    // |=
+    And,       // &
+    AndEq,     // &=
+    Caret,     // ^
+    CaretEq,   // ^=
+    Percent,   // %
+    PercentEq, // %=
+    Shl,       // <<
+    ShlEq,     // <<=
+    Shr,       // >>
+    ShrEq,     // >>=
+
     Eq,         // =
     Bang,       // !
     Underscore, // _
@@ -44,19 +57,7 @@ pub enum Token<'a> {
     Lt,         // <
     Le,         // <=
     Tilde,      // ~
-    Pipe,       // |
-    PipeEq,     // |=
-    And,        // &
-    AndEq,      // &=
-    Caret,      // ^
-    CaretEq,    // ^=
     Question,   // ?
-    Percent,    // %
-    PercentEq,  // %=
-    Shl,        // <<
-    ShlEq,      // <<=
-    Shr,        // >>
-    ShrEq,      // >>=
 
     LeftBrace,    // {
     RightBrace,   // }
@@ -70,18 +71,18 @@ pub enum Token<'a> {
     Error(VeaErr),
 }
 
-impl<'a> Display for Token<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::And => "&",
-                _ => "?",
-            }
-        )
-    }
-}
+// impl<'a> Display for Token<'a> {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(
+//             f,
+//             "{}",
+//             match self {
+//                 Self::And => "&",
+//                 _ => "?",
+//             }
+//         )
+//     }
+// }
 
 pub fn lexer<'s>(
 ) -> impl Parser<'s, &'s str, Vec<Span<Token<'s>>>, chumsky::extra::Err<Rich<'s, char>>> {
@@ -97,12 +98,10 @@ pub fn lexer<'s>(
         .boxed()
         .labelled("ident");
 
-    let quote_char = just("\'\"“”„«»‚‘’‹›").try_map(|x, s| match x {
-        "\'" => Ok(Token::Quote),
-        q => Err(Rich::custom(s, format!("expected invalid quote mark for string\n\t= help: use `'` instead of `{q}` to delimit strings"))),
-    });
+    let quote_char = just('\'').to(Token::Quote);
 
     let string: _ = quote_char
+        .clone()
         .ignore_then(none_of('\'').repeated())
         .then_ignore(quote_char)
         .map_slice(|x: &str| Token::String(x.to_owned()))
@@ -156,7 +155,7 @@ pub fn lexer<'s>(
         just(';').to(Token::Semi)
     }
     .boxed()
-    .labelled("control");
+    .labelled("control character");
 
     let kw: _ = choice! {
         just("let").to(Token::Let),
@@ -166,7 +165,9 @@ pub fn lexer<'s>(
         just("false").to(Token::False),
         just("print").to(Token::Print),
         just("while").to(Token::While),
-        just("for").to(Token::For)
+        just("for").to(Token::For),
+        just("fn").to(Token::Fn),
+        just("return").to(Token::Return),
     }
     .boxed()
     .labelled("keyword");
@@ -179,10 +180,11 @@ pub fn lexer<'s>(
 
     let token: _ = num
         .or(kw)
+        .or(string)
         .or(ident)
         .or(op)
         .or(ctrl)
-        .or(string)
+        // .or(quote_char)
         .boxed()
         .labelled("token");
 

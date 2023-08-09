@@ -68,7 +68,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                 just(Token::Minus).map_with_span(Span)
                     .then(atom.clone())
                     .map_with_span(|(t, x), s| Expr::Neg { minus_token: t, expr: x.rebox() }.t(s))
-            };
+            }
+            .boxed();
 
             let sum: _ = choice! {
                 atom
@@ -94,7 +95,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                             rhs: r.rebox(),
                         }.t(s)
                     })
-            };
+            }
+            .boxed();
 
             let product: _ = choice! {
                 atom
@@ -132,7 +134,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                             rhs: r.rebox(),
                         }.t(s)
                     })
-            };
+            }
+            .boxed();
 
             let cmp: _ = choice! {
                 atom
@@ -182,7 +185,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                             rhs: r.rebox(),
                         }.t(s)
                     })
-            };
+            }
+            .boxed();
 
             let eq: _ = choice! {
                 atom
@@ -208,7 +212,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                             rhs: r.rebox(),
                         }.t(s)
                     })
-            };
+            }
+            .boxed();
 
             let bitwise: _ = choice! {
                 atom
@@ -266,10 +271,27 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                             rhs: r.rebox(),
                         }.t(s)
                     })
-            };
+            }
+            .boxed();
+
+            let callee: _ = atom
+                .clone()
+                .then(just(Token::LeftParen).map_with_span(Span))
+                .then(atom.clone().separated_by(just(Token::Comma)).collect())
+                .then(just(Token::RightParen).map_with_span(Span))
+                .map_with_span(|(((access, left_paren), arguments), right_paren), s| {
+                    Expr::FnCall {
+                        access: access.rebox(),
+                        left_paren,
+                        arguments,
+                        right_paren,
+                    }
+                    .t(s)
+                })
+                .boxed();
 
             // precedence rocks!
-            choice! { eq, cmp, product, bitwise, sum, unary, atom }
+            choice! { callee, eq, cmp, product, bitwise, sum, unary, atom }.boxed()
         });
 
         let kwlet: _ = just(Token::Let)
@@ -287,7 +309,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                     semi_token: ts,
                 }
                 .t(s)
-            });
+            })
+            .boxed();
 
         let assign_to = {
             macro_rules! make {
@@ -306,6 +329,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                             }
                             .t(s)
                         })
+                        .boxed()
                 };
             }
 
@@ -322,7 +346,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             let oor_assign: _ = make!(*Token::PipeEq, Expr::DivAssign, slash_eq_token);
             let xor_assign: _ = make!(*Token::CaretEq, Expr::RemAssign, percent_eq_token);
 
-            choice! { assignment, add_assign, sub_assign, mul_assign, div_assign, rem_assign, shl_assign, shr_assign, and_assign, oor_assign, xor_assign }
+            choice! { assignment, add_assign, sub_assign, mul_assign, div_assign, rem_assign, shl_assign, shr_assign, and_assign, oor_assign, xor_assign }.boxed()
         };
 
         let block = just(Token::LeftBrace)
@@ -336,7 +360,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                     exprs: e,
                 }
                 .t(s)
-            });
+            })
+            .boxed();
 
         let kwwhile = just(Token::While)
             .map_with_span(Span)
@@ -349,7 +374,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                     then: t.rebox(),
                 }
                 .t(s)
-            });
+            })
+            .boxed();
 
         let kwif = recursive(|kif| {
             just(Token::If)
@@ -387,7 +413,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                     }
                     .t(s)
                 })
-        });
+        })
+        .boxed();
 
         let kwprint = just(Token::Print)
             .map_with_span(Span)
@@ -404,7 +431,45 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                     semi_token: sm,
                 }
                 .t(s)
-            });
+            })
+            .boxed();
+
+        let kwreturn = just(Token::Return)
+            .map_with_span(Span)
+            .then(inline.clone())
+            .then(just(Token::Semi).map_with_span(Span))
+            .map_with_span(|((r, e), sm), s| {
+                Expr::Return {
+                    value: e.rebox(),
+                    return_token: r,
+                    semi_token: sm,
+                }
+                .t(s)
+            })
+            .boxed();
+
+        let kwfn = just(Token::Fn)
+            .map_with_span(Span)
+            .then(ident.clone())
+            .then(just(Token::LeftParen).map_with_span(Span))
+            .then(ident.separated_by(just(Token::Comma)).collect())
+            .then(just(Token::RightParen).map_with_span(Span))
+            .then(block.clone())
+            .map_with_span(
+                |(((((fn_token, name), left_paren), arguments), right_paren), block), s| {
+                    // () == x;
+                    Expr::FnDecl {
+                        fn_token,
+                        name,
+                        left_paren,
+                        arguments,
+                        right_paren,
+                        block: block.rebox(),
+                    }
+                    .t(s)
+                },
+            )
+            .boxed();
 
         let errs = select(move |x, _| match x {
             Token::Error(e) => Some(Expr::Error(e)),
@@ -412,7 +477,8 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
         })
         .map_with_span(Span);
 
-        choice! { errs, block, kwlet, assign_to, kwif, kwwhile, kwprint, inline }
+        choice! { errs, block, kwlet, assign_to, kwfn, kwif, kwwhile, kwreturn, kwprint, inline }
+            .boxed()
             .repeated()
             .collect()
     });

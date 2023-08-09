@@ -18,8 +18,15 @@ pub enum Expr<'a> {
         value: Box<Span<Self>>,
     },
 
+    Return {
+        return_token: Span<Token<'a>>,
+        semi_token: Span<Token<'a>>,
+
+        value: Box<Span<Self>>,
+    },
+
     Literal {
-        value: Literal,
+        value: Literal<'a>,
     },
 
     Group {
@@ -46,6 +53,22 @@ pub enum Expr<'a> {
         while_token: Span<Token<'a>>,
         condition: Box<Span<Self>>,
         then: Box<Span<Self>>,
+    },
+
+    FnDecl {
+        fn_token: Span<Token<'a>>,
+        name: Span<&'a str>,
+        left_paren: Span<Token<'a>>,
+        arguments: Vec<Span<&'a str>>,
+        right_paren: Span<Token<'a>>,
+        block: Box<Span<Self>>
+    },
+
+    FnCall {
+        access: Box<Span<Self>>,
+        left_paren: Span<Token<'a>>,
+        arguments: Vec<Span<Self>>,
+        right_paren: Span<Token<'a>>,
     },
 
     Let {

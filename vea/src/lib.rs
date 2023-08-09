@@ -1,19 +1,22 @@
-// #![warn(clippy::cargo)]
-#![warn(clippy::complexity)]
-#![warn(clippy::correctness)]
-// #![warn(clippy::deprecated)]
-#![warn(clippy::nursery)]
-#![warn(clippy::pedantic)]
+#![warn(
+    clippy::nursery,
+    clippy::pedantic,
+    clippy::complexity,
+    clippy::correctness,
+    clippy::style,
+    clippy::perf,
+    clippy::suspicious
+)]
 #![allow(
     clippy::missing_panics_doc,
     clippy::missing_errors_doc,
     clippy::too_many_lines,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::let_with_type_underscore
 )]
-#![warn(clippy::perf)]
-#![warn(clippy::style)]
-#![warn(clippy::suspicious)]
+use std::cell::RefCell;
 use std::io::Write;
+use std::rc::Rc;
 
 use ariadne::sources;
 
@@ -24,6 +27,7 @@ use ariadne::Report;
 use ariadne::ReportKind;
 
 use chumsky::Parser;
+use env::Env;
 use lexer::lexer;
 
 use span::Span;
@@ -40,6 +44,7 @@ pub mod parser;
 pub mod span;
 // #[doc(hidden)]
 // mod special_chars;
+pub mod env;
 pub mod playground;
 #[cfg(test)]
 mod tests;
@@ -108,8 +113,9 @@ pub fn parse<'t>(
 
 #[must_use]
 pub fn interp(src: &str, t: &[Span<lexer::Token<'_>>], p: Vec<Span<ast::Expr>>) -> String {
-    let mut env = interpreter::Env::default();
-    let e = exec(p, &mut env);
+    let env = Rc::new(RefCell::new(Env::new(None)));
+
+    let e = exec(p, &env);
 
     let mut stdo = String::new();
 
@@ -136,24 +142,25 @@ pub fn interp(src: &str, t: &[Span<lexer::Token<'_>>], p: Vec<Span<ast::Expr>>) 
 
 #[must_use]
 pub fn main() -> String {
-    let src = "let x = 0; print(x);";
-    let mut stdo = String::new();
 
-    let oe = lex(src);
+    let r = "let x = 0; print(x);";
+    let mut t = String::new();
 
-    stdo += &oe.1;
+    let o = lex(r);
 
-    if let Some(a) = oe.0.clone() {
-        let p = parse(src, a.as_slice());
+    t += &o.1;
 
-        stdo += &p.1;
+    if let Some(a) = o.0.clone() {
+        let p = parse(r, a.as_slice());
+
+        t += &p.1;
 
         if let Some(p) = p.0.clone() {
-            let m = interp(src, a.as_slice(), p);
+            let mm = interp(r, a.as_slice(), p);
 
-            stdo += &m;
+            t += &mm;
         }
     }
 
-    stdo
+    t
 }

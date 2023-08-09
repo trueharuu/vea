@@ -1,0 +1,52 @@
+fn option() {
+    // _ can never escape without self::unwrap
+    unsafe {
+        let self::data = _;
+
+        some(T) {
+            self::data = T;
+            return self;
+        }
+
+        none() {
+            return self;
+        }
+
+        self::is_some() {
+            return data != _;
+        }
+
+        self::is_none() {
+            return data == _;
+        }
+
+        self::then(f) {
+            if self::is_some() {
+                f(self::data);
+            }
+
+            return self;
+        }
+
+        self::unwrap_or_else(f) {
+            if self::is_some() {
+                return self::data;
+            }
+
+            return f();
+        }
+
+        self::unwrap_or(U) {
+            fn get() {
+                return U;
+            }
+
+            return self::unwrap_or_else(get);
+        }
+
+        // unsafe as `self::data` can be empty
+        unsafe self::unwrap() {
+            return self::data;
+        }
+    }
+}

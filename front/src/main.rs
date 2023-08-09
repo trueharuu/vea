@@ -10,7 +10,7 @@ async fn main() {
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             allowed_mentions: None,
-            commands: vec![lex(), ast(), vea()],
+            commands: vec![lex(), ast(), exec()],
 
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("~".to_owned()),
@@ -76,71 +76,74 @@ async fn lex(context: Context<'_>, esrc: Option<CodeBlock>) -> Result {
 
 #[poise::command(prefix_command)]
 async fn ast(context: Context<'_>, esrc: Option<CodeBlock>) -> Result {
-    let src = if let Some(e) = esrc {
-        e
+    if let Some(e) = esrc {
+        let x = v_ast(&e.code);
+        context.say(x).await?;
     } else {
         context.say("code?".to_owned()).await?;
-        return Ok(());
     };
-    let l = vea::lex(&src.code);
-
-    if !l.1.is_empty() {
-        context
-            .say(format!("lexing errors: ```ansi\n{}\n```", l.1))
-            .await?;
-    }
-
-    if let Some(t) = l.0 {
-        let x = vea::parse(&src.code, &t);
-
-        if !x.1.is_empty() {
-            context
-                .say(format!("parsing errors: ```ansi\n{}\n```", x.1))
-                .await?;
-        }
-
-        if let Some(p) = x.0 {
-            context.say(format!("```rs\n{p:#?}\n```")).await?;
-        }
-    }
 
     Ok(())
 }
 
+fn v_ast(c: &str) -> String {
+    let mut m = String::new();
+    let l = vea::lex(c);
+
+    if !l.1.is_empty() {
+        m += &format!("lexing errors: ```ansi\n{}\n```", l.1);
+    }
+
+    if let Some(t) = l.0 {
+        let x = vea::parse(c, &t);
+
+        if !x.1.is_empty() {
+            m += &format!("parsing errors: ```ansi\n{}\n```", x.1);
+        }
+
+        if let Some(p) = x.0 {
+            m += &format!("```rs\n{p:#?}\n```");
+        }
+    }
+
+    m
+}
+
 #[poise::command(prefix_command)]
-async fn vea(context: Context<'_>, esrc: Option<CodeBlock>) -> Result {
-    let src = if let Some(e) = esrc {
-        e
+async fn exec(context: Context<'_>, esrc: Option<CodeBlock>) -> Result {
+    if let Some(e) = esrc {
+        let x = v_exec(&e.code);
+        context.say(x).await?;
     } else {
         context.say("code?".to_owned()).await?;
         return Ok(());
     };
-    let l = vea::lex(&src.code);
+
+    Ok(())
+}
+
+fn v_exec(c: &str) -> String {
+    let mut z = String::new();
+    let l = vea::lex(c);
 
     if !l.1.is_empty() {
-        context
-            .say(format!("lexing errors: ```ansi\n{}\n```", l.1))
-            .await?;
+        z += &format!("lexing errors: ```ansi\n{}\n```", l.1);
     }
 
     if let Some(t) = l.0 {
-        let x = vea::parse(&src.code, &t.clone());
-
-        dbg!(&x);
+        let x = vea::parse(c, &t.clone());
 
         if !x.1.is_empty() {
-            context
-                .say(format!("parsing errors: ```ansi\n{}\n```", x.1))
-                .await?;
+            z += &format!("parsing errors: ```ansi\n{}\n```", x.1);
         }
 
         if let Some(p) = x.0 {
-            let m = vea::interp(&src.code, &t, p);
+            let m = vea::interp(c, &t, p);
             if !m.is_empty() {
-                context.say(format!("```ansi\n{m}\n```")).await?;
+                z += &format!("```ansi\n{m}\n```");
             }
         }
     }
 
-    Ok(())
+    z
 }

@@ -32,7 +32,7 @@ impl<'a> Env<'a> {
     }
 
     #[must_use]
-    pub fn get(&self, k: &String) -> Option<Rc<RefCell<Literal<'a>>>> {
+    pub fn get(&self, k: &str) -> Option<Rc<RefCell<Literal<'a>>>> {
         if let Some(v) = self.values.borrow().get(k) {
             return Some(v.clone());
         }
@@ -45,7 +45,7 @@ impl<'a> Env<'a> {
     }
 
     #[must_use]
-    pub fn get_ret(&self, k: &String) -> Option<Rc<RefCell<Literal<'a>>>> {
+    pub fn get_ret(&self, k: &str) -> Option<Rc<RefCell<Literal<'a>>>> {
         if let Some(v) = self.retval.borrow().get(k) {
             return Some(v.clone());
         }
@@ -57,13 +57,19 @@ impl<'a> Env<'a> {
         None
     }
 
-    pub fn assign(&mut self, k: &String, v: Rc<RefCell<Literal<'a>>>) -> bool {
+    pub fn assign(&mut self, k: &str, v: Rc<RefCell<Literal<'a>>>) -> Result<(), String> {
         if self.get(k).is_some() {
-            return false;
+            return Err(format!("variable `{k}` already exists"))
         }
 
-        self.values.borrow_mut().insert(k.clone(), v);
-        true
+        if let Some(p) = &self.parent {
+            if p.borrow().has(k) {
+                return Err(format!("variable `{k}` shadows an outer variable with the same name"));
+            }
+        }
+
+        self.values.borrow_mut().insert(k.to_owned(), v);
+        Ok(())
     }
 
     pub fn set(&mut self, k: &str, v: Rc<RefCell<Literal<'a>>>) -> bool {
@@ -77,7 +83,7 @@ impl<'a> Env<'a> {
     }
 
     #[must_use]
-    pub fn has(&self, k: &String) -> bool {
+    pub fn has(&self, k: &str) -> bool {
         if self.values.borrow().get(k).is_some() {
             return true;
         }

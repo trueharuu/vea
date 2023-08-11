@@ -55,20 +55,21 @@ pub fn interp<'a>(
     match one {
         Expr::Literal { value } => Ok(Rc::new(RefCell::new(value))),
         Expr::Access { ident } => {
-            let value = program.get(&ident.0.to_string());
+            let value = program.get(ident.0);
             value.ok_or_else(|| format!("variable `{}` does not exist", ident.0).t(ident.1))
         }
 
         Expr::Let { ident, expr, .. } => {
-            if program.has(&ident.0.to_string()) {
+            if program.has(ident.0) {
                 return Err(format!("variable `{}` already exists", ident.0).t(ident.1));
             }
 
             let value = interp(program, *expr)?;
 
-            program.assign(&ident.0.to_string(), value);
-
-            Ok(none())
+            program
+                .assign(ident.0, value)
+                .map(|_| none())
+                .map_err(|x| x.t(full_span))
         }
 
         Expr::Print { value, .. } => {
@@ -78,7 +79,7 @@ pub fn interp<'a>(
         }
 
         Expr::Assign { ident, expr, .. } => {
-            if !program.has(&ident.0.to_string()) {
+            if !program.has(ident.0) {
                 return Err(format!("variable `{}` does not exist", ident.0).t(ident.1));
             }
 
@@ -190,7 +191,7 @@ pub fn interp<'a>(
                 } else {
                     return Err(format!("fn `{}` has a magic non-block body", &name.0).t(bloc.1));
                 }
-                Ok(program.get_ret(&name.0.to_string()).unwrap_or_else(none))
+                Ok(program.get_ret(name.0).unwrap_or_else(none))
             } else {
                 Err("value is not a function".to_string().t(access.1))
             }
@@ -201,13 +202,13 @@ pub fn interp<'a>(
             arguments,
             block,
             ..
-        } => {
-            program.set(
+        } => program
+            .assign(
                 name.0,
                 Rc::new(RefCell::new(Literal::Fn(name, arguments, block))),
-            );
-            Ok(none())
-        }
+            )
+            .map(|_| none())
+            .map_err(|x| x.t(full_span)),
 
         Expr::If {
             condition,

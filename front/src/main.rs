@@ -10,7 +10,7 @@ async fn main() {
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             allowed_mentions: None,
-            commands: vec![lex(), ast(), exec()],
+            commands: vec![lex(), ast(), exec(), ri()],
 
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("~".to_owned()),
@@ -146,4 +146,46 @@ fn v_exec(c: &str) -> String {
     }
 
     z
+}
+
+fn v_ri(c: &str) -> String {
+    let mut m = String::new();
+    let l = vea::lex(c);
+
+    if !l.1.is_empty() {
+        m += &format!("lexing errors: ```ansi\n{}\n```", l.1);
+    }
+
+    if let Some(t) = l.0 {
+        let x = vea::parse(c, &t);
+
+        if !x.1.is_empty() {
+            m += &format!("parsing errors: ```ansi\n{}\n```", x.1);
+        }
+
+        if let Some(p) = x.0 {
+            m += &format!(
+                "```rs\n{}\n```",
+                p.into_iter()
+                    .map(|x| x.0.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
+    }
+
+    m
+}
+
+#[poise::command(prefix_command)]
+async fn ri(context: Context<'_>, esrc: Option<CodeBlock>) -> Result {
+    if let Some(e) = esrc {
+        let x = v_ri(&e.code);
+        context.say(x).await?;
+    } else {
+        context.say("code?".to_owned()).await?;
+        return Ok(());
+    };
+
+    Ok(())
 }

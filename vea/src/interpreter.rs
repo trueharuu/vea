@@ -1,7 +1,7 @@
 use chumsky::span::SimpleSpan;
 
-use crate::{ast::Expr, common::Tag, env::Env, literal::Literal, span::Span};
-use std::{cell::RefCell, rc::Rc};
+use crate::{ast::Expr, common::Tag, env::Env, literal::Literal, rc_cell, span::Span};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[must_use]
 #[inline]
@@ -270,7 +270,124 @@ pub fn interp<'a>(
                     .to_string()
                     .t(full_span))
             }
-        } // _ => Err("todo".to_owned().t(full_span)),
+        }
+
+        Expr::Object { exprs, .. } => {
+            let mut obj = HashMap::new();
+
+            for Span(expr, s) in exprs {
+                match expr {
+                    Expr::Let { ident, expr, .. } => {
+                        obj.insert(ident.0, interp(program, *expr)?);
+                    }
+                    Expr::FnDecl {
+                        name,
+                        arguments,
+                        block,
+                        ..
+                    } => {
+                        obj.insert(
+                            name.0,
+                            Rc::new(RefCell::new(Literal::Fn(name, arguments, block))),
+                        );
+                    }
+                    _ => return Err("unreachable state".to_string().t(s)),
+                }
+            }
+
+            Ok(rc_cell!(Literal::Object(obj)))
+        }
+
+        Expr::Set { exprs, .. } => {
+            let mut set = vec![];
+
+            for expr in exprs {
+                let value = interp(program, expr.clone())?;
+
+                if set.iter().any(|x: &Rc<RefCell<Literal<'_>>>| {
+                    matches!(
+                        x.borrow().clone().req(value.borrow().clone()),
+                        Ok(Literal::Bool(true))
+                    )
+                }) {
+                    return Err(
+                        format!("value {} is already in this set", value.borrow()).t(expr.1)
+                    );
+                }
+
+                set.push(value);
+            }
+
+            Ok(rc_cell!(Literal::Set(set)))
+        }
+
+        // Expr::Chain { path } => {
+        //     let mut value: Option<Rc<RefCell<Literal<'_>>>> = None;
+
+        //     for part in path {
+        //         if let Some(v) = value {
+        //             match v.borrow().clone() {
+        //                 Literal::Object(v) => {
+        //                     let key = interp(program, part.clone())?.borrow().clone();
+
+        //                     match key {
+        //                         Literal::String(s) => {
+        //                             let kv = v.get(&*s);
+
+        //                             if let Some(kvv) = kv {
+        //                                 value = Some(kvv.clone());
+        //                             } else {
+        //                                 return Err(format!("unknown key `{s}`").t(part.1));
+        //                             }
+        //                         }
+
+        //                         c => {
+        //                             return Err(format!(
+        //                                 "cannot index with `{c}` as it is not a string"
+        //                             )
+        //                             .t(part.1));
+        //                         }
+        //                     }
+        //                 }
+        //                 // TODO: add builtin primitive methods and properties
+        //                 c => {
+        //                     return Err(format!(
+        //                         "cannot index into a value of type `{}`",
+        //                         c.type_of()
+        //                     )
+        //                     .t(part.1))
+        //                 }
+        //             }
+        //         } else {
+        //             value = Some(interp(program, part)?);
+        //         }
+        //     }
+
+        //     value.ok_or_else(|| "path is empty".to_string().t(full_span))
+        // }
+        Expr::Chain { parent, child } => {
+            let p = interp(program, *parent.clone())?.borrow().clone();
+
+            match p {
+                Literal::Object(v) => {
+                    let c = interp(program, *child.clone())?.borrow().clone();
+                    match c {
+                        Literal::String(s) => {
+                            return v.get(&*s).cloned().ok_or_else(|| {
+                                format!("value does not have an index `{}`", s).t(child.1)
+                            })
+                        }
+                        c => Err(
+                            format!("cannot index with a value of type `{}`", c.type_of())
+                                .t(child.1),
+                        ),
+                    }
+                }
+                c => Err(
+                    format!("cannot index into a value with type `{}`", c.type_of()).t(parent.1),
+                ),
+            }
+        }
     }
 }
 

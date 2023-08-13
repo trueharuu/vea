@@ -23,6 +23,8 @@ pub enum Token<'a> {
     For,    // for
     Fn,     // fn
     Return, // return
+    Struct, // struct
+    Set,    // set
 
     Quote, // '
 
@@ -67,22 +69,12 @@ pub enum Token<'a> {
     RightParen,   // )
     Comma,        // ,
     Semi,         // ;
+    Colon,        // :
+    DoubleColon,  // ::
+    Period,       // .
 
     Error(VeaErr),
 }
-
-// impl<'a> Display for Token<'a> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(
-//             f,
-//             "{}",
-//             match self {
-//                 Self::And => "&",
-//                 _ => "?",
-//             }
-//         )
-//     }
-// }
 
 pub fn lexer<'s>(
 ) -> impl Parser<'s, &'s str, Vec<Span<Token<'s>>>, chumsky::extra::Err<Rich<'s, char>>> {
@@ -94,6 +86,7 @@ pub fn lexer<'s>(
     let ident: _ = one_of("abcdefghijklmnopqrstuvwxyz_")
         .repeated()
         .at_least(1)
+        .and_is(just("_").not())
         .map_slice(Token::Ident)
         .boxed()
         .labelled("ident");
@@ -109,6 +102,7 @@ pub fn lexer<'s>(
         .labelled("string");
 
     let op: _ = choice! {
+        just("::").to(Token::DoubleColon),
         just("&=").to(Token::AndEq),
         just("!=").to(Token::Ne),
         just("==").to(Token::EqEq),
@@ -139,7 +133,9 @@ pub fn lexer<'s>(
         just("&").to(Token::And),
         just("^").to(Token::Caret),
         just('?').to(Token::Question),
-        just('%').to(Token::Percent)
+        just('%').to(Token::Percent),
+        just(":").to(Token::Colon),
+        just(".").to(Token::Period)
     }
     .boxed()
     .labelled("operator");
@@ -169,6 +165,8 @@ pub fn lexer<'s>(
         just("fn").to(Token::Fn),
         just("return").to(Token::Return),
         just("yield").to(Token::Return),
+        just("struct").to(Token::Struct),
+        just("set").to(Token::Set),
     }
     .boxed()
     .labelled("keyword");

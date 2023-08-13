@@ -1,5 +1,5 @@
 use chumsky::span::SimpleSpan;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 #[allow(clippy::module_name_repetitions)]
 pub type RawSpan = SimpleSpan<usize>;
@@ -7,6 +7,15 @@ pub type RawSpan = SimpleSpan<usize>;
 pub type RawSpanned<T> = (T, RawSpan);
 
 pub struct Span<T>(pub T, pub RawSpan);
+
+impl<T> Display for Span<T>
+where
+    T: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl<T> From<RawSpanned<T>> for Span<T> {
     fn from(value: RawSpanned<T>) -> Self {

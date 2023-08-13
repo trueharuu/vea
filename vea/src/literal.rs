@@ -1,9 +1,12 @@
 use std::{
+    cell::RefCell,
+    collections::HashMap,
     fmt::Display,
     ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub},
+    rc::Rc,
 };
 
-use crate::{ast::Expr, span::Span, env::Env};
+use crate::{ast::Expr, span::Span};
 
 #[derive(Clone, Debug)]
 pub enum Literal<'a> {
@@ -12,7 +15,8 @@ pub enum Literal<'a> {
     String(String),
     // name, args, body
     Fn(Span<&'a str>, Vec<Span<&'a str>>, Box<Span<Expr<'a>>>),
-    Object(Span<&'a str>, Env<'a>),
+    Object(HashMap<&'a str, Rc<RefCell<Self>>>),
+    Set(Vec<Rc<RefCell<Self>>>),
     None,
 }
 
@@ -26,7 +30,17 @@ impl<'a> Display for Literal<'a> {
                 Self::Integer(z) => z.to_string(),
                 Self::String(z) => z.to_string(),
                 Self::Fn(z, a, ..) => format!("fn {}({})", z.0, a.len()),
-                Self::Object(z, ..) => z.0.to_string(),
+                Self::Object(z) => format!(
+                    "object {{ {} }}",
+                    z.keys().copied().collect::<Vec<_>>().join(", ")
+                ),
+                Self::Set(p) => format!(
+                    "set {{ {} }}",
+                    p.iter()
+                        .map(|x| x.borrow().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
                 Self::None => "_".to_string(),
             }
         )
@@ -41,8 +55,9 @@ impl<'a> Literal<'a> {
             Self::Integer(..) => "int",
             Self::String(..) => "str",
             Self::Fn(..) => "fn",
-            Self::Object(z, ..) => z.0,
+            Self::Object(..) => "object",
             Self::None => "_",
+            Self::Set(..) => "set",
         }
         .to_owned()
     }

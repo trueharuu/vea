@@ -4,11 +4,11 @@ use chumsky::primitive::select;
 use crate::ast::Expr;
 
 use crate::choice;
+use crate::common::Tag;
 use crate::literal::Literal;
 use crate::span::RawSpan;
 use crate::span::Span;
 
-use crate::common::{Rebox, Tag};
 use crate::lexer::Token;
 
 #[must_use]
@@ -18,17 +18,106 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
     Vec<Span<Expr<'s>>>,
     chumsky::extra::Err<Rich<'t, Token<'s>, RawSpan>>,
 > + Clone {
-    let total: _ = recursive(|expr| {
-        let ident = select(|x, s| match x {
-            Token::Ident(x) => Some(Span(x, s)),
-            _ => None,
-        })
-        .boxed()
-        .labelled("ident");
+    let ident = select(move |f, s| match f {
+        Token::Ident(t) => Some(Span(t, s)),
+        _ => None,
+    });
 
-        let inline = recursive(|z| {
-            let atom = select(move |x, s| match x {
-                Token::Ident(z) => Some(Expr::Access { ident: z.t(s) }),
+    let stmt = recursive(|sel| {
+        let block = just(Token::LeftBrace)
+            .map_with_span(Span)
+            .then(sel.clone().repeated().collect::<Vec<_>>())
+            .then(just(Token::RightBrace).map_with_span(Span))
+            .map_with_span(|((left_brace, exprs), right_brace), s| {
+                Expr::Block {
+                    left_brace,
+                    right_brace,
+                    exprs,
+                }
+                .t(s)
+            })
+            .boxed();
+
+        let kwfn = group((
+            just(Token::Fn).map_with_span(Span),
+            ident,
+            just(Token::LeftParen).map_with_span(Span),
+            ident.separated_by(just(Token::Comma)).collect(),
+            just(Token::RightParen).map_with_span(Span),
+            block.clone(),
+        ))
+        .map_with_span(
+            |(fn_token, name, left_paren, arguments, right_paren, block), s| {
+                Expr::FnDecl {
+                    fn_token,
+                    name,
+                    left_paren,
+                    arguments,
+                    right_paren,
+                    block: Box::new(block),
+                }
+                .t(s)
+            },
+        )
+        .boxed();
+
+        macro_rules! kwlet {
+            ($s:ident) => {
+                just(Token::Let)
+                    .map_with_span(Span)
+                    .then(ident)
+                    .then(just(Token::Eq).map_with_span(Span))
+                    .then($s.clone())
+                    .then(just(Token::Semi).map_with_span(Span))
+                    .map_with_span(|((((let_token, ident), eq_token), expr), semi_token), s| {
+                        Expr::Let {
+                            eq_token,
+                            expr,
+                            ident,
+                            let_token,
+                            semi_token,
+                        }
+                        .t(s)
+                    })
+            };
+        }
+
+        let expr = recursive(|eel| {
+            let kgroup = group((
+                just(Token::LeftParen).map_with_span(Span),
+                eel.clone(),
+                just(Token::RightParen).map_with_span(Span),
+            ))
+            .map_with_span(|(left_paren, expr, right_paren), s| {
+                Expr::Group {
+                    left_paren,
+                    right_paren,
+                    expr,
+                }
+                .t(s)
+            })
+            .boxed();
+
+            // aaa
+            let idx = group((
+                eel.clone(),
+                just(Token::LeftBracket),
+                eel.clone(),
+                just(Token::RightBracket),
+            ))
+            .map_with_span(|(parent, _, child, _), s| Expr::Chain { parent, child }.t(s));
+
+            let atom = select(move |f, s| match f {
+                Token::Ident(t) => Some(Expr::Access { ident: t.t(s) }),
+                Token::Number(t) => Some(Expr::Literal {
+                    value: Literal::Integer(t),
+                }),
+                Token::Underscore => Some(Expr::Literal {
+                    value: Literal::None,
+                }),
+                Token::String(t) => Some(Expr::Literal {
+                    value: Literal::String(t),
+                }),
                 Token::True => Some(Expr::Literal {
                     value: Literal::Bool(true),
                 }),
@@ -36,452 +125,272 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                     value: Literal::Bool(false),
                 }),
 
-                Token::Number(z) => Some(Expr::Literal {
-                    value: Literal::Integer(z),
-                }),
-
-                Token::String(z) => Some(Expr::Literal {
-                    value: Literal::String(z),
-                }),
-
                 _ => None,
             })
             .map_with_span(Span)
-            .or(just(Token::LeftParen)
-                .map_with_span(Span)
-                .then(z.clone())
-                .then(just(Token::RightParen).map_with_span(Span))
-                .map_with_span(|((l, e), r): ((Span<Token>, Span<Expr>), Span<Token>), s| {
-                    Expr::Group {
-                        left_paren: l,
-                        expr: e.rebox(),
-                        right_paren: r,
-                    }
-                    .t(s)
-                }))
+            .or(idx.clone())
+            .or(kgroup)
             .boxed();
 
-            let unary: _ = choice! {
-                just(Token::Bang).map_with_span(Span)
-                    .then(atom.clone())
-                    .map_with_span(|(t, x), s| Expr::Not { bang_token: t, expr: x.rebox() }.t(s)),
-                just(Token::Minus).map_with_span(Span)
-                    .then(atom.clone())
-                    .map_with_span(|(t, x), s| Expr::Neg { minus_token: t, expr: x.rebox() }.t(s))
-            }
-            .boxed();
+            let key_or_fn = kwfn.clone().or(kwlet!(eel)).boxed();
 
-            let sum: _ = choice! {
-                atom
-                    .clone()
-                    .then(just(Token::Plus).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Add {
-                            lhs: l.rebox(),
-                            plus_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-
-                atom
-                    .clone()
-                    .then(just(Token::Minus).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Sub {
-                            lhs: l.rebox(),
-                            minus_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    })
-            }
-            .boxed();
-
-            let product: _ = choice! {
-                atom
-                    .clone()
-                    .then(just(Token::Star).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Mul {
-                            lhs: l.rebox(),
-                            star_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-
-                atom
-                    .clone()
-                    .then(just(Token::Slash).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Div {
-                            lhs: l.rebox(),
-                            slash_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-
-                atom
-                    .clone()
-                    .then(just(Token::Percent).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Rem {
-                            lhs: l.rebox(),
-                            percent_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    })
-            }
-            .boxed();
-
-            let cmp: _ = choice! {
-                atom
-                    .clone()
-                    .then(just(Token::Gt).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Gt {
-                            lhs: l.rebox(),
-                            gt_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-
-                atom
-                    .clone()
-                    .then(just(Token::Ge).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Ge {
-                            lhs: l.rebox(),
-                            ge_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-
-                atom
-                    .clone()
-                    .then(just(Token::Lt).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Lt {
-                            lhs: l.rebox(),
-                            lt_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-
-                atom
-                    .clone()
-                    .then(just(Token::Le).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Le {
-                            lhs: l.rebox(),
-                            le_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    })
-            }
-            .boxed();
-
-            let eq: _ = choice! {
-                atom
-                    .clone()
-                    .then(just(Token::EqEq).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Eq {
-                            lhs: l.rebox(),
-                            eqeq_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-
-                atom
-                    .clone()
-                    .then(just(Token::Ne).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Ne {
-                            lhs: l.rebox(),
-                            ne_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    })
-            }
-            .boxed();
-
-            let bitwise: _ = choice! {
-                atom
-                    .clone()
-                    .then(just(Token::Shl).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Shl {
-                            lhs: l.rebox(),
-                            shl_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-                atom
-                    .clone()
-                    .then(just(Token::Shr).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Shr {
-                            lhs: l.rebox(),
-                            shr_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-                atom
-                    .clone()
-                    .then(just(Token::And).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::And {
-                            lhs: l.rebox(),
-                            and_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-                atom
-                    .clone()
-                    .then(just(Token::Pipe).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Or {
-                            lhs: l.rebox(),
-                            pipe_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    }),
-                atom
-                    .clone()
-                    .then(just(Token::Caret).map_with_span(Span))
-                    .then(atom.clone())
-                    .map_with_span(|((l, t), r), s| {
-                        Expr::Xor {
-                            lhs: l.rebox(),
-                            caret_token: t,
-                            rhs: r.rebox(),
-                        }.t(s)
-                    })
-            }
-            .boxed();
-
-            let callee: _ = atom
-                .clone()
-                .then(just(Token::LeftParen).map_with_span(Span))
-                .then(atom.clone().separated_by(just(Token::Comma)).collect())
-                .then(just(Token::RightParen).map_with_span(Span))
-                .map_with_span(|(((access, left_paren), arguments), right_paren), s| {
-                    Expr::FnCall {
-                        access: access.rebox(),
-                        left_paren,
-                        arguments,
-                        right_paren,
-                    }
-                    .t(s)
-                })
-                .boxed();
-
-            // precedence rocks!
-            choice! { callee, eq, cmp, product, bitwise, sum, unary, atom }.boxed()
-        });
-
-        let kwlet: _ = just(Token::Let)
-            .map_with_span(Span)
-            .then(ident.clone())
-            .then(just(Token::Eq).map_with_span(Span))
-            .then(inline.clone())
-            .then(just(Token::Semi).map_with_span(Span))
-            .map_with_span(|((((tl, i), e), te), ts), s| {
-                Expr::Let {
-                    let_token: tl,
-                    ident: i,
-                    eq_token: e,
-                    expr: te.rebox(),
-                    semi_token: ts,
+            let obj = group((
+                just(Token::Struct).map_with_span(Span),
+                just(Token::LeftBrace).map_with_span(Span),
+                key_or_fn.repeated().collect::<Vec<_>>(),
+                just(Token::RightBrace).map_with_span(Span),
+            ))
+            .map_with_span(|(struct_token, left_brace, exprs, right_brace), s| {
+                Expr::Object {
+                    struct_token,
+                    left_brace,
+                    exprs,
+                    right_brace,
                 }
                 .t(s)
             })
             .boxed();
 
-        let assign_to = {
-            macro_rules! make {
-                (* $separator:path, $expr:path, $id:ident) => {
-                    ident
-                        .clone()
-                        .then(just($separator).map_with_span(Span))
-                        .then(inline.clone())
-                        .then(just(Token::Semi).map_with_span(Span))
-                        .map_with_span(|(((a, b), c), d), s| {
-                            $expr {
-                                ident: a,
-                                $id: b,
-                                expr: c.rebox(),
-                                semi_token: d,
-                            }
-                            .t(s)
-                        })
+            let set = group((
+                just(Token::Set).map_with_span(Span),
+                just(Token::LeftBrace).map_with_span(Span),
+                eel.clone()
+                    .separated_by(just(Token::Comma))
+                    .collect::<Vec<_>>(),
+                just(Token::RightBrace).map_with_span(Span),
+            ))
+            .map_with_span(|(set_token, left_brace, exprs, right_brace), s| {
+                Expr::Set {
+                    set_token,
+                    left_brace,
+                    exprs: exprs.into_iter().map(|x| *x).collect(),
+                    right_brace,
+                }
+                .t(s)
+            })
+            .boxed();
+
+            macro_rules! op {
+                (1 $token:path, $expr:ident, $op:ident, $e: expr) => {
+                    group((just($token).map_with_span(Span), atom.clone()))
+                        .map(|($op, $expr)| ($op, Box::new($expr)))
+                        .map_with_span(|($op, $expr), s| $e.t(s))
+                        .boxed()
+                };
+                (2 $token:path, $lhs:ident $op:ident $rhs:ident, $e:expr) => {
+                    group((atom.clone(), just($token).map_with_span(Span), atom.clone()))
+                        .map(|($lhs, $op, $rhs)| (Box::new($lhs), $op, Box::new($rhs)))
+                        .map_with_span(|($lhs, $op, $rhs), s| $e.t(s))
                         .boxed()
                 };
             }
 
-            let assignment: _ = make!(*Token::Eq, Expr::Assign, eq_token);
-            let add_assign: _ = make!(*Token::PlusEq, Expr::AddAssign, plus_eq_token);
-            let sub_assign: _ = make!(*Token::MinusEq, Expr::SubAssign, minus_eq_token);
-            let mul_assign: _ = make!(*Token::StarEq, Expr::MulAssign, star_eq_token);
-            let div_assign: _ = make!(*Token::SlashEq, Expr::DivAssign, slash_eq_token);
-            let rem_assign: _ = make!(*Token::PercentEq, Expr::RemAssign, percent_eq_token);
+            let unary = choice![
+                op![1 Token::Bang, expr, bang_token, Expr::Not { bang_token, expr }],
+                op![1 Token::Minus, expr, minus_token, Expr::Neg { minus_token, expr }],
+            ]
+            .boxed();
 
-            let shl_assign: _ = make!(*Token::ShlEq, Expr::AddAssign, plus_eq_token);
-            let shr_assign: _ = make!(*Token::ShrEq, Expr::SubAssign, minus_eq_token);
-            let and_assign: _ = make!(*Token::AndEq, Expr::MulAssign, star_eq_token);
-            let oor_assign: _ = make!(*Token::PipeEq, Expr::DivAssign, slash_eq_token);
-            let xor_assign: _ = make!(*Token::CaretEq, Expr::RemAssign, percent_eq_token);
+            let sum = choice![
+                op![2 Token::Plus, lhs plus_token rhs, Expr::Add { lhs, plus_token, rhs }],
+                op![2 Token::Minus, lhs minus_token rhs, Expr::Sub { lhs, minus_token, rhs }],
+            ]
+            .boxed();
 
-            choice! { assignment, add_assign, sub_assign, mul_assign, div_assign, rem_assign, shl_assign, shr_assign, and_assign, oor_assign, xor_assign }.boxed()
+            let product = choice![
+                op![2 Token::Star, lhs star_token rhs, Expr::Mul { lhs, star_token, rhs }],
+                op![2 Token::Slash, lhs slash_token rhs, Expr::Div { lhs, slash_token, rhs }],
+                op![2 Token::Percent, lhs percent_token rhs, Expr::Rem { lhs, percent_token, rhs }],
+            ]
+            .boxed();
+
+            let cmp = choice![
+                op![2 Token::EqEq, lhs eqeq_token rhs, Expr::Eq { lhs, eqeq_token, rhs }],
+                op![2 Token::Ne, lhs ne_token rhs, Expr::Ne { lhs, ne_token, rhs }],
+                op![2 Token::Gt, lhs gt_token rhs, Expr::Gt { lhs, gt_token, rhs }],
+                op![2 Token::Ge, lhs ge_token rhs, Expr::Ge { lhs, ge_token, rhs }],
+                op![2 Token::Lt, lhs lt_token rhs, Expr::Lt { lhs, lt_token, rhs }],
+                op![2 Token::Le, lhs le_token rhs, Expr::Le { lhs, le_token, rhs }],
+            ]
+            .boxed();
+
+            let bitwise = choice![
+                op![2 Token::And, lhs and_token rhs, Expr::And { lhs, and_token, rhs }],
+                op![2 Token::Caret, lhs caret_token rhs, Expr::Xor { lhs, caret_token, rhs }],
+                op![2 Token::Pipe, lhs pipe_token rhs, Expr::Or { lhs, pipe_token, rhs }],
+            ]
+            .boxed();
+
+            let fncall = group((
+                ident.map_with_span(|ident, s| Box::new(Expr::Access { ident }.t(s))),
+                just(Token::LeftParen).map_with_span(Span),
+                eel.clone()
+                    .separated_by(just(Token::Comma))
+                    .allow_trailing()
+                    .collect::<Vec<_>>()
+                    .map(|x| x.iter().map(|x| *x.clone()).collect::<Vec<_>>()),
+                just(Token::RightParen).map_with_span(Span),
+            ))
+            .map_with_span(|(access, left_paren, arguments, right_paren), s| {
+                Expr::FnCall {
+                    access,
+                    arguments,
+                    left_paren,
+                    right_paren,
+                }
+                .t(s)
+            })
+            .boxed();
+
+            choice![fncall, obj, set, bitwise, cmp, product, sum, unary, atom].map(Box::new)
+        });
+
+        let kwlet = kwlet!(expr);
+        let assign = {
+            macro_rules! assign_op {
+                ($t:path, $ident:ident $name:ident $expr:ident $semi_token:ident, $e:expr) => {
+                    group((
+                        ident,
+                        just($t).map_with_span(Span),
+                        expr.clone(),
+                        just(Token::Semi).map_with_span(Span),
+                    ))
+                    .map_with_span(|($ident, $name, $expr, $semi_token), s| $e.t(s))
+                };
+                (* $(: $t:path, $ident:ident $name:ident $expr:ident $semi_token:ident, $e:expr)*) => {
+                    $(assign_op![$t, $ident $name $expr $semi_token, $e], )*
+                }
+            }
+
+            choice![
+                assign_op![
+                    Token::AndEq,
+                    ident and_eq_token expr semi_token,
+                    Expr::AndAssign {
+                        ident,
+                        and_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::CaretEq,
+                    ident caret_eq_token expr semi_token,
+                    Expr::XorAssign {
+                        ident,
+                        caret_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::Eq,
+                    ident eq_token expr semi_token,
+                    Expr::Assign {
+                        ident,
+                        eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::MinusEq,
+                    ident minus_eq_token expr semi_token,
+                    Expr::SubAssign {
+                        ident,
+                        minus_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::PercentEq,
+                    ident percent_eq_token expr semi_token,
+                    Expr::RemAssign {
+                        ident,
+                        percent_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::PipeEq,
+                    ident pipe_eq_token expr semi_token,
+                    Expr::OrAssign {
+                        ident,
+                        pipe_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::PlusEq,
+                    ident plus_eq_token expr semi_token,
+                    Expr::AddAssign {
+                        ident,
+                        plus_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::ShlEq,
+                    ident shl_eq_token expr semi_token,
+                    Expr::ShlAssign {
+                        ident,
+                        shl_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::ShrEq,
+                    ident shr_eq_token expr semi_token,
+                    Expr::ShrAssign {
+                        ident,
+                        shr_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::SlashEq,
+                    ident slash_eq_token expr semi_token,
+                    Expr::DivAssign {
+                        ident,
+                        slash_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+                assign_op![
+                    Token::StarEq,
+                    ident star_eq_token expr semi_token,
+                    Expr::MulAssign {
+                        ident,
+                        star_eq_token,
+                        expr,
+                        semi_token
+                    }
+                ],
+            ]
         };
+        let kwreturn = chumsky::prelude::group((
+            just(Token::Return).map_with_span(Span),
+            expr,
+            just(Token::Semi).map_with_span(Span),
+        ))
+        .map_with_span(|(return_token, value, semi_token), s| {
+            Expr::Return {
+                return_token,
+                semi_token,
+                value,
+            }
+            .t(s)
+        });
 
-        let block = just(Token::LeftBrace)
-            .map_with_span(Span)
-            .then(expr.clone())
-            .then(just(Token::RightBrace).map_with_span(Span))
-            .map_with_span(|((lb, e), rb), s| {
-                Expr::Block {
-                    left_brace: lb,
-                    right_brace: rb,
-                    exprs: e,
-                }
-                .t(s)
-            })
-            .boxed();
-
-        let kwwhile = just(Token::While)
-            .map_with_span(Span)
-            .then(inline.clone())
-            .then(block.clone())
-            .map_with_span(|((while_token, c), t), s| {
-                Expr::While {
-                    while_token,
-                    condition: c.rebox(),
-                    then: t.rebox(),
-                }
-                .t(s)
-            })
-            .boxed();
-
-        let kwif = recursive(|kif| {
-            just(Token::If)
-                .map_with_span(Span)
-                .then(
-                    just(Token::LeftParen)
-                        .map_with_span(Span)
-                        .ignore_then(inline.clone())
-                        .then_ignore(just(Token::RightParen).map_with_span(Span)),
-                )
-                .then(block.clone())
-                .then(
-                    just(Token::Else)
-                        .map_with_span(Span)
-                        .then(block.clone().or(kif).or_not())
-                        .or_not(),
-                )
-                .map_with_span(|(((l, c), e), z), s| {
-                    if let Some((p, q)) = z {
-                        Expr::If {
-                            if_token: l,
-                            condition: c.rebox(),
-                            then: e.rebox(),
-                            else_token: Some(p),
-                            other: q.map(Box::new),
-                        }
-                    } else {
-                        Expr::If {
-                            if_token: l,
-                            condition: c.rebox(),
-                            then: e.rebox(),
-                            else_token: None,
-                            other: None,
-                        }
-                    }
-                    .t(s)
-                })
-        })
-        .boxed();
-
-        let kwprint = just(Token::Print)
-            .map_with_span(Span)
-            .then(just(Token::LeftParen).map_with_span(Span))
-            .then(inline.clone())
-            .then(just(Token::RightParen).map_with_span(Span))
-            .then(just(Token::Semi).map_with_span(Span))
-            .map_with_span(|((((lp, p), e), rp), sm), s| {
-                Expr::Print {
-                    value: e.rebox(),
-                    left_paren: lp,
-                    print_token: p,
-                    right_paren: rp,
-                    semi_token: sm,
-                }
-                .t(s)
-            })
-            .boxed();
-
-        let kwreturn = just(Token::Return)
-            .map_with_span(Span)
-            .then(inline.clone())
-            .then(just(Token::Semi).map_with_span(Span))
-            .map_with_span(|((r, e), sm), s| {
-                Expr::Return {
-                    value: e.rebox(),
-                    return_token: r,
-                    semi_token: sm,
-                }
-                .t(s)
-            })
-            .boxed();
-
-        let kwfn = just(Token::Fn)
-            .map_with_span(Span)
-            .then(ident.clone())
-            .then(just(Token::LeftParen).map_with_span(Span))
-            .then(ident.separated_by(just(Token::Comma)).collect())
-            .then(just(Token::RightParen).map_with_span(Span))
-            .then(block.clone())
-            .map_with_span(
-                |(((((fn_token, name), left_paren), arguments), right_paren), block), s| {
-                    // () == x;
-                    Expr::FnDecl {
-                        fn_token,
-                        name,
-                        left_paren,
-                        arguments,
-                        right_paren,
-                        block: block.rebox(),
-                    }
-                    .t(s)
-                },
-            )
-            .boxed();
-
-        let errs = select(move |x, _| match x {
-            Token::Error(e) => Some(Expr::Error(e)),
-            _ => None,
-        })
-        .map_with_span(Span);
-
-        choice! { errs, block, kwlet, assign_to, kwfn, kwif, kwwhile, kwreturn, kwprint, inline }
-            .boxed()
-            .repeated()
-            .collect()
+        choice![block, kwfn, kwreturn, kwlet, assign]
     });
 
-    total
+    stmt.repeated().at_least(1).collect()
 }

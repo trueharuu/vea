@@ -44,6 +44,7 @@ pub mod parser;
 pub mod span;
 // #[doc(hidden)]
 // mod special_chars;
+pub mod display;
 pub mod env;
 pub mod playground;
 #[cfg(test)]
@@ -90,11 +91,11 @@ pub fn parse<'t>(
 
     p.1.clone()
         .into_iter()
-        .map(|x: _| x.map_token(|c: _| format!("{c:?}")))
+        .map(|x: _| x.map_token(|c: _| ariadne::Color::Green.paint(c.to_string())))
         .for_each(|x: _| {
             Report::build(ReportKind::Error, "test.vea", b[x.span().start].1.start)
                 // .with_config(Config::default().with_char_set(CharSet::Ascii))
-                .with_message(x.to_string())
+                .with_message("")
                 .with_label(
                     Label::new((
                         "test.vea",
@@ -142,7 +143,6 @@ pub fn interp(src: &str, t: &[Span<lexer::Token<'_>>], p: Vec<Span<ast::Expr>>) 
 
 #[must_use]
 pub fn main() -> String {
-
     let r = "let x = 0; print(x);";
     let mut t = String::new();
 

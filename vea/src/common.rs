@@ -65,7 +65,7 @@ impl Display for VeaErr {
             match self {
                 Self::IntegerOverflow => "integer overflow".to_string(),
                 Self::InvalidQuotationMark(c) => format!("invalid quote mark `{c}`"),
-                Self::InvalidStringEscape => "invalid string escape".to_string()
+                Self::InvalidStringEscape => "invalid string escape".to_string(),
             }
         )
     }
@@ -110,4 +110,11 @@ impl<T> Unbox for Box<T> {
     {
         *self.clone()
     }
+}
+
+#[macro_export]
+macro_rules! rc_cell {
+    ($($t:tt)*) => {
+        ::std::rc::Rc::new(::std::cell::RefCell::new($($t)*))
+    };
 }

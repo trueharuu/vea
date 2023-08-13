@@ -29,6 +29,25 @@ pub enum Expr<'a> {
         value: Literal<'a>,
     },
 
+    Object {
+        struct_token: Span<Token<'a>>,
+        left_brace: Span<Token<'a>>,
+        exprs: Vec<Span<Self>>,
+        right_brace: Span<Token<'a>>,
+    },
+
+    Set {
+        set_token: Span<Token<'a>>,
+        left_brace: Span<Token<'a>>,
+        exprs: Vec<Span<Self>>,
+        right_brace: Span<Token<'a>>,
+    },
+
+    Chain {
+        parent: Box<Span<Self>>,
+        child: Box<Span<Self>>,
+    },
+
     Group {
         left_paren: Span<Token<'a>>,
         expr: Box<Span<Self>>,
@@ -61,7 +80,7 @@ pub enum Expr<'a> {
         left_paren: Span<Token<'a>>,
         arguments: Vec<Span<&'a str>>,
         right_paren: Span<Token<'a>>,
-        block: Box<Span<Self>>
+        block: Box<Span<Self>>,
     },
 
     FnCall {

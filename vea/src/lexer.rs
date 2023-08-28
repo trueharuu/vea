@@ -12,6 +12,7 @@ pub enum Token<'a> {
     Ident(&'a str), // abc
     Number(i64),    // 123
     String(String), // 'abc'
+    Imul(i64, String),
 
     Let,    // let
     If,     // if

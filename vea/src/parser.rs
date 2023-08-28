@@ -23,6 +23,11 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
         _ => None,
     });
 
+    let number = select(move |f, s| match f {
+        Token::Number(t) => Some(Span(t, s)),
+        _ => None,
+    });
+
     let stmt = recursive(|sel| {
         let block = just(Token::LeftBrace)
             .map_with_span(Span)
@@ -98,7 +103,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             })
             .boxed();
 
-            // aaa
+            // TODO: fix that
             let idx = group((
                 eel.clone(),
                 just(Token::LeftBracket),
@@ -131,6 +136,20 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             .or(idx.clone())
             .or(kgroup)
             .boxed();
+
+            let imul = group((number, ident)).map_with_span(|(n, v), s| {
+                Expr::Mul {
+                    star_token: Span(Token::Star, SimpleSpan::new(n.1.end, v.1.start)),
+                    lhs: Box::new(Span(
+                        Expr::Literal {
+                            value: Literal::Integer(n.0),
+                        },
+                        n.1,
+                    )),
+                    rhs: Box::new(Span(Expr::Access { ident: v }, v.1)),
+                }
+                .t(s)
+            });
 
             let key_or_fn = kwfn.clone().or(kwlet!(eel)).boxed();
 
@@ -242,7 +261,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             })
             .boxed();
 
-            choice![fncall, obj, set, bitwise, cmp, product, sum, unary, atom].map(Box::new)
+            choice![fncall, obj, set, bitwise, cmp, product, sum, unary, imul, atom].map(Box::new)
         });
 
         let kwlet = kwlet!(expr);
@@ -375,6 +394,25 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
                 ],
             ]
         };
+        let kwprint = group((
+            just(Token::Print).map_with_span(Span),
+            just(Token::LeftParen).map_with_span(Span),
+            expr.clone(),
+            just(Token::RightParen).map_with_span(Span),
+            just(Token::Semi).map_with_span(Span),
+        ))
+        .map_with_span(
+            |(print_token, left_paren, value, right_paren, semi_token), s| {
+                Expr::Print {
+                    left_paren,
+                    print_token,
+                    right_paren,
+                    semi_token,
+                    value,
+                }
+                .t(s)
+            },
+        );
         let kwreturn = chumsky::prelude::group((
             just(Token::Return).map_with_span(Span),
             expr,
@@ -389,7 +427,7 @@ pub fn parser<'t, 's: 't>() -> impl Parser<
             .t(s)
         });
 
-        choice![block, kwfn, kwreturn, kwlet, assign]
+        choice![block, kwfn, kwreturn, kwprint, kwlet, assign]
     });
 
     stmt.repeated().at_least(1).collect()

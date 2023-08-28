@@ -67,6 +67,7 @@ impl<'a> Display for Token<'a> {
                 Self::Colon => ":".to_string(),
                 Self::DoubleColon => "::".to_string(),
                 Self::Period => ".".to_string(),
+                Self::Imul(a, b) => format!("{a}{b}"),
             }
         )
     }
